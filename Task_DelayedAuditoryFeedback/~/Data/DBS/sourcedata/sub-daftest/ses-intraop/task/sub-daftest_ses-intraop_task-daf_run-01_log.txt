@@ -1,0 +1,52 @@
+                      SUBJECT: 'daftest'
+                SESSION_LABEL: 'intraop'
+                    DATA_TYPE: 'task'
+                 RECORD_AUDIO: 1
+                          PTB: 0
+          STOP_BETWEEN_TRIALS: 1
+                          iti: [0.750000000000000 1.250000000000000]
+                midi_dev_name: 'H90 Pedal'
+                    midi_chan: 1
+                  midi_cc_num: 1
+                         TASK: 'daf'
+                 TASK_VERSION: 3
+                TASK_FUNCTION: 'task_daf_midi.m'
+                   max_trials: Inf
+               stim_font_size: 60
+       stim_max_char_per_line: 30
+                   catchRatio: 0
+    same_trials_across_blocks: 1
+           DAF_START_OFFSET_S: 0
+                  go_beep_dur: 0.050000000000000
+                  go_beep_amp: 0.500000000000000
+                  play_go_cue: 1
+                   go_latency: [1.500000000000000 2.500000000000000]
+           delay_block_design: 1
+    randomize_miniblock_order: 1
+            max_delay_repeats: Inf
+             max_stim_repeats: Inf
+              delay_values_ms: [0 50 225]
+                     n_blocks: 3
+                daf_stim_file: 'daf_sentences_intraop_single.tsv'
+              response_window: 6
+        trials_per_mini_block: 5
+                 midi_dev_idx: []
+                    PATH_TASK: '~/git/Task_DelayedAuditoryFeedback'
+              PATH_SOURCEDATA: '~/Data/DBS/sourcedata'
+                 PATH_STIMDIR: '~/git/Task_DelayedAuditoryFeedback\stimuli'
+                   PATH_AUDIO: '~\Data\DBS\sourcedata\sub-daftest\ses-intraop\audio'
+                       RUN_ID: 1
+                     PATH_LOG: '~\Data\DBS\sourcedata\sub-daftest\ses-intraop\task'
+                    BASE_NAME: 'sub-daftest_ses-intraop_task-daf_run-01_'
+                 LOG_FILENAME: '~\Data\DBS\sourcedata\sub-daftest\ses-intraop\task\sub-daftest_ses-intraop_task-daf_run-01_log.txt'
+               EVENT_FILENAME: '~\Data\DBS\sourcedata\sub-daftest\ses-intraop\task\sub-daftest_ses-intraop_task-daf_run-01_events.tsv'
+               TRIAL_FILENAME: '~\Data\DBS\sourcedata\sub-daftest\ses-intraop\task\sub-daftest_ses-intraop_task-daf_run-01_trials.tsv'
+               AUDIO_FILENAME: '~\Data\DBS\sourcedata\sub-daftest\ses-intraop\audio\sub-daftest_ses-intraop_task-daf_run-01.wav'
+
+Starting parallel pool (parpool) using the 'Processes' profile ...
+12-May-2026 21:51:34: Job Running. Waiting for parallel pool workers to connect ...
+Connected to parallel pool with 16 workers.
+{Error using <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('START_DAF_MIDI', 'C:\docs\code\Task_DelayedAuditoryFeedback\START_DAF_MIDI.m', 226)" style="font-weight:bold">START_DAF_MIDI</a> (<a href="matlab: opentoline('C:\docs\code\Task_DelayedAuditoryFeedback\START_DAF_MIDI.m',226,0)">line 226</a>)
+Scripts folder not found: ~\git\Task_DelayedAuditoryFeedback\scripts
+} 
+<a href="matlab: opentoline('C:\docs\code\Task_DelayedAuditoryFeedback\START_DAF_MIDI.m',226,1)">226 </a>    error('Scripts folder not found: %s', scriptPath);

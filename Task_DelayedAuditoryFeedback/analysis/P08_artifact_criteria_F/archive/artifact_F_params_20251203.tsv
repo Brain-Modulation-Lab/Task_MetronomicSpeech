@@ -1,0 +1,4 @@
+subject	name	electrode_type	wav_freq_min	wav_freq_max	n_wav_freqs	wav_width	env_bin_size	env_mult_factor	th_fix_min	th_fix_max	th_factor_std_low	th_factor_std_high	th_consolidation	th_frac_coverage	th_conn_low	th_conn_high
+default	ecog_beta	ecog	15	29	15	1	1	1	7.5	12	2.5	3.5	3	0.5	4	8
+default	macro_beta	macro	15	29	15	1	1	1	9	12.5	2.5	3.5	3	0.5	2	3
+default	dbs_beta	dbs	15	29	15	1	1	1	6	12.5	2.5	3	3	0.5	3	4
