@@ -32,20 +32,20 @@ switch compname
         };
 
     case {''}  % Kien laptop
-        paths.code = ''; 
+        paths.code = []; 
         paths.data = ''; % mapped drive
         paths.task       = [paths.code, filesep, 'Task_MetronomicSpeech']; 
 
         % external toolboxes
-        paths.spm = [paths.code, filesep, 'spm12']; %%%% 
-        paths.fieldtrip_toolbox = [paths.code, filesep, 'fieldtrip']; % only used in analysis, not running experiment
-        paths.bml = [paths.code, filesep, 'bml']; % RM Richardson lab toolbox
+        % paths.spm = []; %%%% 
+        % paths.fieldtrip_toolbox = [paths.code, filesep, 'fieldtrip']; % only used in analysis, not running experiment
+        paths.bml = []; % RM Richardson lab toolbox
 
         % add these paths only if we are not on the intraop rig computer
         extra_paths =  {paths.task;...
             [paths.task, filesep, 'util'];...
             % paths.spm;... %%%% 
-            paths.fieldtrip_toolbox;... % needed for preproc step A04
+            % paths.fieldtrip_toolbox;... % needed for preproc step A04
             paths.bml
             };
     case    'NSSBML01' % Turbo - used via remote desktop protocol
