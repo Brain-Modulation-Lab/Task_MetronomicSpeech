@@ -29,7 +29,7 @@ intraop_delay_values_ms = [0 50 255]; % intended to be be [0, low-delay, high-de
 
 %%
 cfg.DATA_TYPE     = 'task';         % Data type for folder structure
-cfg.RECORD_AUDIO  = 1;          % Whether to record microphone audio during the task
+cfg.RECORD_AUDIO  = 0;          % Whether to record microphone audio during the task
 cfg.PTB           = false;          % Use Psychtoolbox for timing and display (false disables it)
 cfg.STOP_BETWEEN_TRIALS = 1;     % Require space to proceed between all trials (after ITI plays)
     cfg.iti = [0.75, 1.25]; % Inter-trial interval range in seconds - 1sec seems appropriate for when there is pause for spacebar press between trials
