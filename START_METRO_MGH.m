@@ -1,4 +1,4 @@
-function START_METRO
+function START_METRO_MGH
 % START_METRO - Launcher for the metronomic paced-speech task.
 %
 % Mirrors the DAF launcher's structure: build the cfg struct -> prepare paths,
@@ -18,7 +18,7 @@ cfg.SESSION_LABEL = 'intraop';    % 'preop' or 'intraop' (drives folder naming +
 %% ---------------- Run / session options ----------------
 cfg.DATA_TYPE       = 'task';        % data-type subfolder name
 % cfg.RECORD_AUDIO is machine-specific -> set per host in the paths switch below
-cfg.PTB             = false;         % Psychtoolbox (not used here; plain figure + sound())
+cfg.PTB             = false;         % Psychtoolbox 
 cfg.wait_for_space  = true;          % require SPACE to start each trial
 cfg.iti             = [0.75 1.25];   % jittered inter-trial interval (s)   [was iti_range in the demo]
 cfg.max_trials      = inf;           % cap on total trials (inf = run them all)
