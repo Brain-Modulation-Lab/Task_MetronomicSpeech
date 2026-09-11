@@ -1,13 +1,10 @@
 function task_daf_MIDI(cfg)
-% Runs the Delayed Auditory Feedback (DAF) task, controlling visuals, timing, logging,
-% and MIDI control of Eventide H90
+% Runs the Metronomic Speech task, controlling visuals, timing, audio, logging
 %
-% Supports optional Psychtoolbox timing backend for high precision.
 %
 % Logs three TSV files:
 %  - Events (cfg.EVENT_FILENAME): time-stamped experiment events
 %  - Trials (cfg.TRIAL_FILENAME): trial metadata
-%  - Commands (derived from cfg.EVENT_FILENAME): command send/ack tracking
 
 %% Validate configuration and set defaults
 % Check required folder presence

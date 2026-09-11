@@ -11,8 +11,8 @@ function START_METRO_MGH
 cfg = struct();
 
 %% ---------------- Subject / session ----------------
-cfg.SUBJECT       = 'DM1060';     % Subject identifier
-% cfg.SUBJECT     = 'metrotest';  % <- use this for a test run
+% cfg.SUBJECT       = 'DM1060';     % Subject identifier
+cfg.SUBJECT     = 'metrotest';  % <- use this for a test run
 cfg.SESSION_LABEL = 'intraop';    % 'preop' or 'intraop' (drives folder naming + n_blocks)
 
 %% ---------------- Run / session options ----------------
@@ -41,15 +41,15 @@ cfg.metronome_amplitude = 0.30;   % metronome loudness (0..1)
 cfg.tick_freq           = 1600;   % metronome click tone (Hz)
 cfg.tick_dur            = 0.02;   % metronome click duration (s)
 
-%% ---------------- Stimuli ----------------
-% Self-contained sentence set (no external .tsv required). Edit/extend freely,
-% or read a file into cfg.sentences (a cell array of char rows) if you prefer.
-cfg.sentences = { ...
-    'Whistling winds whipped through weathered shutters during stormy nights.'
-    'The mountain river flowed swiftly past the quiet village.'
-    'Golden sunlight spilled across the open meadow at dawn.'
-    'She carefully folded each letter before sealing the envelope.'
-    };
+% % % % % % % % % % % % % % % % % % % % % %% ---------------- Stimuli ----------------
+% % % % % % % % % % % % % % % % % % % % % % Self-contained sentence set (no external .tsv required). Edit/extend freely,
+% % % % % % % % % % % % % % % % % % % % % % or read a file into cfg.sentences (a cell array of char rows) if you prefer.
+% % % % % % % % % % % % % % % % % % % % % cfg.sentences = { ...
+% % % % % % % % % % % % % % % % % % % % %     'Whistling winds whipped through weathered shutters during stormy nights.'
+% % % % % % % % % % % % % % % % % % % % %     'The mountain river flowed swiftly past the quiet village.'
+% % % % % % % % % % % % % % % % % % % % %     'Golden sunlight spilled across the open meadow at dawn.'
+% % % % % % % % % % % % % % % % % % % % %     'She carefully folded each letter before sealing the envelope.'
+% % % % % % % % % % % % % % % % % % % % %     };
 
 %% ---------------- Task metadata ----------------
 cfg.TASK          = 'metro';               % task name (used in output filenames)
