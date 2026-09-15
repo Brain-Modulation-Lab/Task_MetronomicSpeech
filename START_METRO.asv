@@ -1,7 +1,7 @@
 function START_METRO_MGH
 % START_METRO - Launcher for the metronomic paced-speech task.
 %
-% Mirrors the DAF launcher's structure: build the cfg struct -> prepare paths,
+% build the cfg struct -> prepare paths,
 % output folders and filenames -> (optionally) start audio recording and
 % hardware -> launch the task function (task_metronomic.m), passing cfg.
 %
@@ -13,24 +13,26 @@ cfg = struct();
 %% ---------------- Subject / session ----------------
 % cfg.SUBJECT       = 'DM1060';     % Subject identifier
 cfg.SUBJECT     = 'metrotest';  % <- use this for a test run
-cfg.SESSION_LABEL = 'intraop';    % 'preop' or 'intraop' (drives folder naming + n_blocks)
+
+cfg.SESSION = 'preop';    % 'preop' or 'intraop' (drives folder naming + n_blocks)
+% cfg.SESSION_LABEL = 'intraop';    % 'preop' or 'intraop' (drives folder naming + n_blocks)
+
 
 %% ---------------- Run / session options ----------------
-cfg.DATA_TYPE       = 'task';        % data-type subfolder name
-% cfg.RECORD_AUDIO is machine-specific -> set per host in the paths switch below
-cfg.PTB             = false;         % Psychtoolbox 
-cfg.wait_for_space  = true;          % require SPACE to start each trial
-cfg.iti             = [0.75 1.25];   % jittered inter-trial interval (s)   [was iti_range in the demo]
-cfg.max_trials      = inf;           % cap on total trials (inf = run them all)
-cfg.randomize_order = true;          % shuffle sentence order within each block
+cfg.RECORD_AUDIO          =  1; 
+cfg.wait_for_space        = true;          % require SPACE to start each trial
+cfg.iti                   = [0.75 1.25];   % jittered inter-trial interval (s)   [was iti_range in the demo]
+cfg.max_trials            = inf;           % cap on total trials (inf = run them all)
+cfg.randomize_order       = true;          % shuffle sentence order within each block
+cfg.trials_per_mini_block = 5;       % there will be at least this many trials of a condition in a row
 
 %% ---------------- Metronomic task parameters (ported from metronomic_task_demo) ----------------
-cfg.metronome_duration = 1.5;          % s the auditory metronome plays (pre-go epoch 1)
-cfg.beat_dur           = 0.33;         % s between metronome beats = metronome rate
-cfg.pre_speech_delay   = [0.75 1.24];  % jittered silent period (s) after metronome, before GO beep (epoch 2)
-cfg.speech_window_dur  = 5;            % s between GO beep onset and visual stimulus disappearing
-cfg.stim_font_size     = 34;           % stimulus font size
-cfg.stim_max_char_per_line = 26;       % wrap width for the sentence (chars per line)
+cfg.metronome_duration      = 1.5;          % s the auditory metronome plays (pre-go epoch 1)
+cfg.beat_dur                = 0.33;         % s between metronome beats = metronome rate
+cfg.pre_speech_delay        = [0.75 1.24];  % jittered silent period (s) after metronome, before GO beep (epoch 2)
+cfg.speech_window_dur       = 5;            % s between GO beep onset and visual stimulus disappearing
+cfg.stim_font_size          = 34;           % stimulus font size
+cfg.stim_max_char_per_line  = 26;       % wrap width for the sentence (chars per line)
 
 %% ---------------- Sounds ----------------
 cfg.go_beep_freq        = 1000;   % GO beep tone (Hz)
@@ -41,29 +43,21 @@ cfg.metronome_amplitude = 0.30;   % metronome loudness (0..1)
 cfg.tick_freq           = 1600;   % metronome click tone (Hz)
 cfg.tick_dur            = 0.02;   % metronome click duration (s)
 
-% % % % % % % % % % % % % % % % % % % % % %% ---------------- Stimuli ----------------
-% % % % % % % % % % % % % % % % % % % % % % Self-contained sentence set (no external .tsv required). Edit/extend freely,
-% % % % % % % % % % % % % % % % % % % % % % or read a file into cfg.sentences (a cell array of char rows) if you prefer.
-% % % % % % % % % % % % % % % % % % % % % cfg.sentences = { ...
-% % % % % % % % % % % % % % % % % % % % %     'Whistling winds whipped through weathered shutters during stormy nights.'
-% % % % % % % % % % % % % % % % % % % % %     'The mountain river flowed swiftly past the quiet village.'
-% % % % % % % % % % % % % % % % % % % % %     'Golden sunlight spilled across the open meadow at dawn.'
-% % % % % % % % % % % % % % % % % % % % %     'She carefully folded each letter before sealing the envelope.'
-% % % % % % % % % % % % % % % % % % % % %     };
-
 %% ---------------- Task metadata ----------------
 cfg.TASK          = 'metro';               % task name (used in output filenames)
 cfg.TASK_VERSION  = 1;
-cfg.TASK_FUNCTION = 'task_metronomic.m';   % main task file; must live in <PATH_TASK>/scripts
+cfg.TASK_FUNCTION = 'task_metro.m';   % main task file; must live in <PATH_TASK>/scripts
 
 %% ---------------- Session-specific settings ----------------
-switch cfg.SESSION_LABEL
+switch cfg.SESSION
     case 'preop'
         cfg.n_blocks = 2;
+        cfg.stim_file = 'daf_sentences_preop_single.tsv'; 
     case 'intraop'
         cfg.n_blocks = 3;
+        cfg.stim_file = 'daf_sentences_intraop_single.tsv'; 
     otherwise
-        error('Unknown session label: %s', cfg.SESSION_LABEL);
+        error('Unknown session label: %s', cfg.SESSION);
 end
 
 clc
@@ -79,20 +73,23 @@ close all force
 % record audio (RECORD_AUDIO=1 only on rigs that have record_audio.m + interface).
 computer_name = char(java.net.InetAddress.getLocalHost.getHostName);
 switch computer_name
-    case 'crc-dot1x-nat-10-239-35-5.bu.edu'                 % Kien's Mac
-        cfg.PATH_TASK       = '/Users/kiendang/Documents/GitHub/Task_MetronomicSpeech';
-        cfg.PATH_SOURCEDATA = '/Users/kiendang/Documents/Guenther_Lab_Data';
-        cfg.RECORD_AUDIO    = 0;   % no lab recording setup on this machine
+
 
     case 'BML-ALIENWARE2'                                    % intraop rig laptop
         cfg.PATH_TASK       = 'D:\Task\Task_MetronomicSpeech';
         cfg.PATH_SOURCEDATA = 'D:\DBS\sourcedata';
         cfg.RECORD_AUDIO    = 1;   % rig has record_audio.m + interface
 
-    case {'677-GUE-WL-0010','677-GUE-WL-0012','AMSMEIER'}    % AM Thinkpad X1 / strix laptops
+    case {'677-GUE-WL-0010','677-GUE-WL-0012','amsmeier'}    % AM Thinkpad X1 / strix laptops
         cfg.PATH_TASK       = 'C:\docs\code\Task_MetronomicSpeech';
         cfg.PATH_SOURCEDATA = 'C:\sourcedata';
         cfg.RECORD_AUDIO    = 1;
+
+
+    case 'crc-dot1x-nat-10-239-35-5.bu.edu'   % Kien Dang's mac (made early script version)
+        cfg.PATH_TASK       = '/Users/kiendang/Documents/GitHub/Task_MetronomicSpeech';
+        cfg.PATH_SOURCEDATA = '/Users/kiendang/Documents/Guenther_Lab_Data';
+        cfg.RECORD_AUDIO    = 0;   % no lab recording setup on this machine
 
     otherwise
         warning('Unrecognized host "%s" - using fallback paths.', computer_name);
@@ -103,19 +100,15 @@ end
 cfg.PATH_STIMDIR = fullfile(cfg.PATH_TASK, 'stimuli');
 
 % Build subject/session-level folders for data storage
-pathSub            = fullfile(cfg.PATH_SOURCEDATA, ['sub-' cfg.SUBJECT]);
-pathSubSes         = fullfile(pathSub, ['ses-' cfg.SESSION_LABEL]);
-pathSubSesDataType = fullfile(pathSubSes, cfg.DATA_TYPE);
-pathSubSesAudio    = fullfile(pathSubSes, 'audio');
+cfg.PATH_SUB            = fullfile(cfg.PATH_SOURCEDATA, ['sub-' cfg.SUBJECT]);
+cfg.PATH_SES         = fullfile(cfg.PATH_SUB, ['ses-' cfg.SESSION]);
+cfg.PATH_AUDIO    = fullfile(cfg.PATH_SES, 'audio');
+cfg.PATH_AUDIO    = fullfile(cfg.PATH_SES, 'audio');
 
-% Create output directories if they do not exist
-for p = {cfg.PATH_SOURCEDATA, pathSub, pathSubSes, pathSubSesDataType, pathSubSesAudio}
-    if ~isfolder(p{1}), mkdir(p{1}); end
-end
-cfg.PATH_AUDIO = pathSubSesAudio;
+cfg.PATH_AUDIO = PATH_AUDIO;
 
 %% ---------------- Run basename, filenames ----------------
-fileBaseName = ['sub-' cfg.SUBJECT '_ses-' cfg.SESSION_LABEL '_task-' cfg.TASK '_run-'];
+fileBaseName = ['sub-' cfg.SUBJECT '_ses-' cfg.SESSION '_task-' cfg.TASK '_run-'];
 
 % Increment run ID based on existing event files for this session
 allEventFiles = dir(fullfile(pathSubSesDataType, [fileBaseName '*_events.tsv']));

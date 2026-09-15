@@ -1,5 +1,5 @@
 
-function [paths, compname] = set_paths_daf(op,paths)
+function [paths, compname] = set_paths_metro(op,paths)
 
 % if a paths variable wasn't provided, create a new one
 if ~exist('paths','var')

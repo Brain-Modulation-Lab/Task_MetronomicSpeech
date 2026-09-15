@@ -1,4 +1,4 @@
-function task_daf_MIDI(cfg)
+function task_metro(cfg)
 % Runs the Metronomic Speech task, controlling visuals, timing, audio, logging
 %
 %
@@ -20,8 +20,7 @@ end
 % make sure .NET assembly is available for KeyPoll subfunction 
 NET.addAssembly('PresentationCore');
 
-%% Setup timing function backend: Psychtoolbox (PTB) or MATLAB native timer
-
+%% Setup timing function backend: MATLAB native timer
 % Configure timing functions for experiment
 t0 = tic;
 t0_abs = datetime('now');
@@ -32,10 +31,7 @@ T.until = @(t) pause(max(0, t - T.now())); % Wait until absolute time
 
 %% Load and prepare trial table (double check files)
 addpath(cfg.PATH_TASK);
-if ~(exist('create_trials_table','file')==2)
-    error('create_trials_table.m not found on path %s', cfg.PATH_TASK);
-end
-[cfg, trials, text_wrapped_all] = create_trials_table(cfg); % Create and load trial parameters table and wrapped text for display
+[cfg, trials, text_wrapped_all] = create_trials_table_metro(cfg); % Create and load trial parameters table and wrapped text for display
 cfg.ntrials = height(trials);
 
 % Ensure a 'block' column exists for break handling
@@ -102,9 +98,6 @@ doDigOut = isfield(cfg,'DIGOUT') && logical(cfg.DIGOUT);
 % Turn constant audio playback on
 flipState = 0;
 
-% find cc_val for 0ms delay
-zero_delay_cc = delay_to_midi_ccval(0);
-
 %% audio setup
 cfg = setup_audio_devices(cfg); 
 audWriter = audioDeviceWriter('SampleRate', cfg.aud_player_fs);
@@ -166,7 +159,6 @@ log_event(eventFH, doDigOut, t0, [], [], 'control', [], 0, 'Instructions_End', f
 %% Main trial loop
 for itrial = 1:cfg.ntrials
     isCatch = trials.catch_trial(itrial);
-    trials.delay(itrial) = trials.delay(itrial);
 
     % ITI + fixation
     set(hText,'String','*','Color', tern(~isCatch,[0.7 0.7 0.7],'red'));
@@ -180,19 +172,9 @@ for itrial = 1:cfg.ntrials
     itiDur = cfg.iti(1) + rand*(cfg.iti(2)-cfg.iti(1));
     T.wait(itiDur);
 
-    % Send DAF ON command relative to fixation onset (if not catch trial)
-    if ~isCatch
-        if cfg.DAF_START_OFFSET_S ~= 0
-            T.until(tFixOn + cfg.DAF_START_OFFSET_S);
-        end
-
-        % send midi command to device to set DAF delay value to the one specified for this trial
-        midisend(cfg.midi_dev_idx, 'ControlChange', cfg.midi_chan, cfg.midi_cc_num, trials.midi_cc_val(itrial))
-
         flipState = ~flipState;
         log_event(eventFH, doDigOut, T.now(), [], [], 'speech', [], TRIG_DAF, sprintf('DAF_On_cmd(ms=%d)', trials.delay(itrial)), flipState);
-        fprintf(['\n trial ',num2str(itrial), ' / ', num2str(cfg.ntrials), ',   delay = ', num2str(trials.delay(itrial)),'\n'])
-    end
+        fprintf(['\n trial ',num2str(itrial), ' / ', num2str(cfg.ntrials), ',   metronmic_condition = ', num2str(trials.metro_speech(itrial)),'\n'])
 
     % Visual on, fixation cross off
     set(hSquare,'FaceColor',[0 0 0]);
@@ -210,8 +192,6 @@ for itrial = 1:cfg.ntrials
         while T.now() - tPrepStart < trials.go_latency(itrial) 
             [~, esc] = KeyPoll();
             if esc
-                 % send midi command to device to set DAF delay value to zero
-                 midisend(cfg.midi_dev_idx, 'ControlChange', cfg.midi_chan, cfg.midi_cc_num, zero_delay_cc)
     
                 flipState = ~flipState;
                 log_event(eventFH, doDigOut, T.now(), [], [], tern(isCatch,'catch','speech'), [], TRIG_ESC, 'Key_Esc', flipState);
@@ -239,8 +219,6 @@ for itrial = 1:cfg.ntrials
     while T.now() - tSpeakStart < cfg.response_window
         [~, esc] = KeyPoll();
         if esc
-             % send midi command to device to set DAF delay value to zero
-             midisend(cfg.midi_dev_idx, 'ControlChange', cfg.midi_chan, cfg.midi_cc_num, zero_delay_cc)
 
             flipState = ~flipState;
             log_event(eventFH, doDigOut, T.now(), [], [], tern(isCatch,'catch','speech'), [], TRIG_ESC, 'Key_Esc', flipState);
@@ -266,8 +244,7 @@ for itrial = 1:cfg.ntrials
         while true
             [space, esc] = KeyPoll();
             if esc
-                 % send midi command to device to set DAF delay value to zero
-                 midisend(cfg.midi_dev_idx, 'ControlChange', cfg.midi_chan, cfg.midi_cc_num, zero_delay_cc)
+
                 flipState = ~flipState;
                 log_event(eventFH, doDigOut, T.now(), [], [], tern(isCatch,'catch','speech'), [], TRIG_ESC, 'Key_Esc', flipState);
                 safeQuit(); fclose(eventFH); close(hfig); return
@@ -312,13 +289,6 @@ for itrial = 1:cfg.ntrials
 end
 
 %% Cleanup
- % send midi command to device to set DAF delay value to zero
-midisend(cfg.midi_dev_idx, 'ControlChange', cfg.midi_chan, cfg.midi_cc_num, zero_delay_cc)
-if isfield(cfg, 'DAF_MIDI') && ~isempty(cfg.midi_dev_idx)
-    release(cfg.midi_dev_idx)
-end
-
-
 fclose(eventFH);
 close(hfig);
 fprintf('Task complete.\n');

@@ -108,26 +108,26 @@ cfg.mini_blocks_per_block = cfg.mini_blocks_per_condition * nConds;
         stim_order  = zeros(cfg.trials_per_block, 1);
         metro_order = false(cfg.trials_per_block, 1);
 
-        writeIdx = 1;
-
+        % Inside build_one_block — rename to avoid colliding with outer writeIdx
+        mb_row = 1;                          
+        
         for iorder = 1:nMiniBlocks
-            this_mb = mb_order(iorder);
-
+            this_mb        = mb_order(iorder);
             this_condition = mb_condition(this_mb);
             this_mb_idx    = mb_index_within_condition(this_mb);
-
+        
             if this_condition
                 this_stim = metro_mbs{this_mb_idx};
             else
                 this_stim = nonmetro_mbs{this_mb_idx};
             end
-
-            rows = writeIdx:(writeIdx + cfg.trials_per_mini_block - 1);
-
+        
+            rows = mb_row:(mb_row + cfg.trials_per_mini_block - 1); 
+        
             stim_order(rows)  = this_stim;
             metro_order(rows) = this_condition;
-
-            writeIdx = writeIdx + cfg.trials_per_mini_block;
+        
+            mb_row = mb_row + cfg.trials_per_mini_block;          
         end
     end
 
@@ -141,7 +141,7 @@ for iblock = 1:cfg.n_blocks
 
     % If this is the first block, or if trials should vary across blocks,
     % generate a new within-block order. Otherwise reuse the previous one.
-    if iblock == 1 || ~cfg.same_trials_across_blocks
+    if iblock == 1
         force_first_miniblock_nonmetro = iblock == 1;
         [stim_order, metro_order] = build_one_block(force_first_miniblock_nonmetro);
     end
@@ -208,11 +208,8 @@ for si = 1:cfg.n_unique_stim
 end
 
 %% Compute jittered go latencies
-if cfg.play_go_cue
-    go_latency_vec = cfg.go_latency(1) + diff(cfg.go_latency) * rand(ntrials, 1);
-else
-    go_latency_vec = nan(ntrials, 1);
-end
+go_latency_vec = cfg.go_latency(1) + diff(cfg.go_latency) * rand(ntrials, 1);
+
 
 %% Build trial table
 trials = table( ...

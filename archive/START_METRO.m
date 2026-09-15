@@ -1,5 +1,5 @@
-function START_DAF_MIDI
-% start_daf_intraop_MIDI - Intraoperative launcher for the Delayed Auditory Feedback (DAF) task
+function START_METRO
+% start_METRO - Intraoperative launcher for the Delayed Auditory Feedback (DAF) task
 %
 % This function configures and launches task_daf_midi, which controls
 % the experiment presentation, timing, and communication with the H90 Eventide.
@@ -9,6 +9,13 @@ function START_DAF_MIDI
 % No input arguments; all configuration is inside the function.
 %
 % The configuration is stored in the 'cfg' struct, passed to the task function.
+
+% Adding prameters to the top from metro_demo 
+% Re-format the computer specific specifications (similar to
+% PATHSOURCEDATA)
+% see if parallel pool to run (prob not bc of config) if success it will
+% record audio into the the data folder guenther lab. 
+
 
 cfg = struct();
 
@@ -29,7 +36,7 @@ intraop_delay_values_ms = [0 50 255]; % intended to be be [0, low-delay, high-de
 
 %%
 cfg.DATA_TYPE     = 'task';         % Data type for folder structure
-cfg.RECORD_AUDIO  = 1;          % Whether to record microphone audio during the task
+cfg.RECORD_AUDIO  = 0;          % Whether to record microphone audio during the task
 cfg.PTB           = false;          % Use Psychtoolbox for timing and display (false disables it)
 cfg.STOP_BETWEEN_TRIALS = 1;     % Require space to proceed between all trials (after ITI plays)
     cfg.iti = [0.75, 1.25]; % Inter-trial interval range in seconds - 1sec seems appropriate for when there is pause for spacebar press between trials
@@ -98,33 +105,14 @@ end
 clc
 close all force
 
-%% MIDI setup
-devs = mididevinfo; %%% must have audio toolbox; this function not available before Matlab R2018a
-outNames = string({devs.output.Name});
-ix = find(contains(lower(outNames), lower(cfg.midi_dev_name), 'IgnoreCase', true), 1);
-
-if isempty(ix)
-    warning('MIDI out "%s" not found. Available: %s', cfg.midi_dev_name, strjoin(outNames, ', '));
-    cfg.midi_dev_idx = []; % allow visuals only fallback
-else
-    cfg.midi_dev_idx = mididevice('Output', outNames(ix));
-end
-
-% Log a quick probe for audit
-fprintf('[MIDI] Outputs available:\n');
-for i = 1:numel(outNames)
-    sel = "";
-    if i == ix
-        sel = "  [SELECTED]";
-    end
-    fprintf('  - %s%s\n', outNames(i), sel);
-end
-if isempty(cfg.midi_dev_idx)
-    warning('Running WITHOUT DAF (no MIDI device). Visuals/logging only.');
-end
-
 
 %% Paths & output folders
+computer_name = char(java.net.InetAddress.getLocalHost.getHostName) ;
+switch computer_name 
+    case 'crc-dot1x-nat-10-239-35-5.bu.edu'
+        cfg.PATH_TASK = '/Users/kiendang/Documents/GitHub/Task_MetronomicSpeech' ;
+        cfg.PATH_SOURCEDATA = '/Users/kiendang/Documents/Guenther_Lab_Data'
+
 if strcmpi(getenv('COMPUTERNAME'), 'BML-ALIENWARE2') % intraop rig laptop
     cfg.PATH_TASK       = 'D:\Task\Task_DelayedAuditoryFeedback';
     cfg.PATH_SOURCEDATA = 'D:\DBS\sourcedata';
@@ -133,9 +121,6 @@ elseif any(strcmpi(getenv('COMPUTERNAME'), {'677-GUE-WL-0010','677-GUE-WL-0012',
     cfg.PATH_TASK       = 'C:\docs\code\Task_DelayedAuditoryFeedback';
     cfg.PATH_SOURCEDATA = 'C:\sourcedata'; 
 
-elseif ismac
-    cfg.PATH_TASK       = '/Users/samhansen/Documents/MATLAB/Guenther/Task_DelayedAuditoryFeedback/';
-    cfg.PATH_SOURCEDATA = '/Users/samhansen/Documents/MATLAB/Guenther/Task_DelayedAuditoryFeedback/stimuli';
 else
     cfg.PATH_TASK       = '~/git/Task_DelayedAuditoryFeedback';
     cfg.PATH_SOURCEDATA = '~/Data/DBS/sourcedata';
@@ -191,7 +176,7 @@ if ~isfolder(scriptPath)
 end
 cd(scriptPath);
 
-%% Start audio recording (optional)
+%% Start audio recording 
 % parallel worker for external audio recording 
 if cfg.RECORD_AUDIO
     if isempty(gcp())
