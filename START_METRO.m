@@ -14,13 +14,13 @@ cfg = struct();
 % cfg.SUBJECT       = 'DM1060';     % Subject identifier
 cfg.SUBJECT     = 'metrotest';  % <- use this for a test run
 
-cfg.SESSION = 'preop';    % 'preop' or 'intraop' (drives folder naming + n_blocks)
-% cfg.SESSION_LABEL = 'intraop';    % 'preop' or 'intraop' (drives folder naming + n_blocks)
+% cfg.SESSION = 'preop';    % 'preop' or 'intraop' (drives folder naming + n_blocks)
+cfg.SESSION = 'intraop';    % 'preop' or 'intraop' (drives folder naming + n_blocks)
 
 
 %% ---------------- Run / session options ----------------
 cfg.RECORD_AUDIO          =  1; 
-cfg.STOP_BETWEEN_TRIALS        = true;          % require SPACE to start each trial
+cfg.STOP_BETWEEN_TRIALS        = 0;          % require SPACE to start each trial
 cfg.iti                   = [0.75 1.25];   % jittered inter-trial interval (s)   [was iti_range in the demo]
 cfg.max_trials            = inf;           % cap on total trials (inf = run them all)
 cfg.randomize_order       = true;          % shuffle sentence order within each block
@@ -30,10 +30,10 @@ cfg.first_trial_is_metro = 1;
 
 %% ---------------- Metronomic task parameters (ported from metronomic_task_demo) ----------------
 cfg.metro_dur      = 2.5;          % s the auditory metronome plays (pre-go epoch 1)
-cfg.metro_rate             = 2;         % rate in Hz of audio metronome
+cfg.metro_rate             = 3.5;         % rate in Hz of audio metronome
 cfg.go_latency        = [0.75 1.24];  % jittered silent period (s) after metronome, before GO beep (epoch 2)
-cfg.speech_window_dur       = 5;            % s between GO beep onset and visual stimulus disappearing
-cfg.stim_font_size          = 34;           % stimulus font size
+cfg.speech_window_dur       = 9;            % s between GO beep onset and visual stimulus disappearing
+cfg.stim_font_size          = 80;           % stimulus font size
 cfg.stim_max_char_per_line  = 26;       % wrap width for       the sentence (chars per line)
 
 %% ---------------- Sounds ----------------
@@ -56,7 +56,7 @@ switch cfg.SESSION
         cfg.n_blocks = 2;
         cfg.stim_file = 'daf_sentences_preop_single.tsv'; 
     case 'intraop'
-        cfg.n_blocks = 3;
+        cfg.n_blocks = 2;
         cfg.stim_file = 'daf_sentences_intraop_single.tsv'; 
     otherwise
         error('Unknown session label: %s', cfg.SESSION);
@@ -126,6 +126,15 @@ cfg.LOG_FILENAME   = fullfile(cfg.PATH_SRC_TASK, [cfg.BASE_NAME 'log.txt']);
 cfg.EVENT_FILENAME = fullfile(cfg.PATH_SRC_TASK, [cfg.BASE_NAME 'events.tsv']);
 cfg.TRIAL_FILENAME = fullfile(cfg.PATH_SRC_TASK, [cfg.BASE_NAME 'trials.tsv']);
 cfg.AUDIO_FILENAME = fullfile(cfg.PATH_AUDIO, [cfg.BASE_NAME(1:end-1) '.wav']);
+
+%% ---------------- Create output directories ----------------
+% Must exist before diary / fopen calls that write into them.
+dirs_to_make = {cfg.PATH_SUB, cfg.PATH_SES, cfg.PATH_AUDIO, cfg.PATH_SRC_TASK};
+for i = 1:numel(dirs_to_make)
+    if ~isfolder(dirs_to_make{i})
+        mkdir(dirs_to_make{i});
+    end
+end
 
 %% ---------------- Diary (console logging) ----------------
 diary(cfg.LOG_FILENAME);
