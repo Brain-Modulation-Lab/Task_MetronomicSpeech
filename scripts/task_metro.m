@@ -1,317 +1,399 @@
 function task_metro(cfg)
-% Runs the Metronomic Speech task, controlling visuals, timing, audio, logging
+% task_metro  Run the metronomic-speech task (non-PsychToolbox).
 %
+% Trial structure
+%  1. ITI — fixation cross, jittered duration (cfg.iti)
+%  2. Stimulus epoch  (cfg.metro_dur s, begins at visual onset)
+%       metro_speech trial : audio metronome at cfg.metro_rate Hz
+%       speech-only trial  : identical timing, silence, no metro log events
+%  3. Jittered silent delay (trials.go_latency s, pre-computed per trial)
+%  4. GO beep  (if cfg.play_go_cue)
+%  5. Speech window  (cfg.speech_window_dur s)
+%  6. Visual off
 %
-% Logs three TSV files:
-%  - Events (cfg.EVENT_FILENAME): time-stamped experiment events
-%  - Trials (cfg.TRIAL_FILENAME): trial metadata
+% Logging
+%  First tick   → TRIG_METRONOME (Metronome_Onset) written first, then TRIG_METRO_TICK
+%  Every tick   → TRIG_METRO_TICK (Tick_N)
+%  Last tick end→ TRIG_METRONOME (Metronome_Offset)
+%
+% ESC handling
+%  During a trial  : escaped flag set; current trial completes normally, then exit.
+%  During a pause  : immediate clean exit.
 
-%% Validate configuration and set defaults
-% Check required folder presence
+%% ---- Default optional fields ----------------------------------------
+if ~isfield(cfg,'play_go_cue'),           cfg.play_go_cue           = true;  end
+if ~isfield(cfg,'STOP_BETWEEN_TRIALS'),   cfg.STOP_BETWEEN_TRIALS   = false; end
+if ~isfield(cfg,'pause_every_n_trials'),  cfg.pause_every_n_trials  = inf;   end
+if ~isfield(cfg,'speech_window_dur'),     cfg.speech_window_dur     = 5;     end
+
+%% ---- Validate -------------------------------------------------------
 if ~isfield(cfg,'PATH_TASK') || ~isfolder(cfg.PATH_TASK)
     error('cfg.PATH_TASK missing or invalid.');
 end
-
-% Check that essential output file names are provided
 if ~isfield(cfg,'EVENT_FILENAME') || ~isfield(cfg,'TRIAL_FILENAME')
-    error('cfg EVENT/TRIAL filenames missing.');
+    error('cfg.EVENT_FILENAME and cfg.TRIAL_FILENAME are required.');
 end
 
-% make sure .NET assembly is available for KeyPoll subfunction 
+%% ---- .NET keyboard --------------------------------------------------
 NET.addAssembly('PresentationCore');
 
-%% Setup timing function backend: MATLAB native timer
-% Configure timing functions for experiment
-t0 = tic;
-t0_abs = datetime('now');
-t0_abs = seconds(timeofday(t0_abs)); % convert to seconds since midnight
-T.now   = @() t0_abs + toc(t0);
-T.wait  = @(s) pause(max(0,s));            % Wait via pause
-T.until = @(t) pause(max(0, t - T.now())); % Wait until absolute time
+%% ---- Timing helpers -------------------------------------------------
+ticH  = tic;
+t0abs = seconds(timeofday(datetime('now')));  % s-since-midnight at task start
+T.now   = @()  t0abs + toc(ticH);            % current absolute time
+T.wait  = @(s) pause(max(0, s));
+T.until = @(t) pause(max(0, t - T.now()));
 
-%% Load and prepare trial table (double check files)
+%% ---- Build trial table ----------------------------------------------
 addpath(cfg.PATH_TASK);
-[cfg, trials, text_wrapped_all] = create_trials_table_metro(cfg); % Create and load trial parameters table and wrapped text for display
+[cfg, trials, text_wrapped_all] = create_trials_table_metro(cfg);
 cfg.ntrials = height(trials);
 
-% Ensure a 'block' column exists for break handling
-if cfg.n_blocks < 1, cfg.n_blocks = 1; end
-if ~ismember('block', trials.Properties.VariableNames)
-    if cfg.n_blocks == 1
-        trials.block = ones(cfg.ntrials,1,'uint16');
-    else
-        edges = round(linspace(0, cfg.ntrials, cfg.n_blocks+1));
-        blockVec = zeros(cfg.ntrials,1,'uint16');
-        for b = 1:cfg.n_blocks
-            if edges(b) < edges(b+1)
-                blockVec(edges(b)+1 : edges(b+1)) = b;
-            end
-        end
-        % In rare rounding cases, fill any zeros with last nonzero
-        if any(blockVec==0)
-            last = 1;
-            for j = 1:cfg.ntrials
-                if blockVec(j)==0, blockVec(j)=last; else, last=blockVec(j); end
-            end
-        end
-        trials.block = blockVec;
-    end
+%% ---- Ensure output directories exist --------------------------------
+for fn = {'EVENT_FILENAME','TRIAL_FILENAME'}
+    d = fileparts(cfg.(fn{1}));
+    if ~isempty(d) && ~isfolder(d), mkdir(d); end
 end
 
-%% Open event log file and write header line
-eventFH = fopen(cfg.EVENT_FILENAME, 'w');
+%% ---- Event log (BIDS TSV header) ------------------------------------
+eventFH = fopen(cfg.EVENT_FILENAME,'w');
 fprintf(eventFH,'onset\tduration\tsample\ttrial_type\tstim\tvalue\tevent_code\n');
 
-
-%% Setup graphics (visuals, stimulus text, photodiode square, keyboard callbacks)
-cfg.text_color = [1 1 1];
+%% ---- Display setup --------------------------------------------------
+cfg.text_color       = [1 1 1];
 cfg.background_color = [0 0 0];
-screenSize = get(0,'ScreenSize');
-hfig = figure('Name','DAF','Color',cfg.background_color,'MenuBar','none','ToolBar','none', 'Position',[0 0 screenSize(3) screenSize(4)], 'NumberTitle','off');
-
-% Create full-figure invisible axes for holding text
-ax = axes('Parent',hfig,'Position',[0 0 1 1],'Visible','off');
-
-% Create text object centered on figure for stimuli
-hText = text(0.5,0.5,'','Parent',ax,'Color',cfg.text_color,... % white text
-    'FontSize',cfg.stim_font_size,'FontWeight','bold',...
-    'HorizontalAlignment','center','VerticalAlignment','middle',...
+ss   = get(0,'ScreenSize');
+hfig = figure('Name','Metro Task','Color',cfg.background_color, ...
+    'MenuBar','none','ToolBar','none','NumberTitle','off', ...
+    'Position',[0 0 ss(3) ss(4)]);
+ax    = axes('Parent',hfig,'Position',[0 0 1 1],'Visible','off');
+hText = text(0.5,0.5,'','Parent',ax,'Color',cfg.text_color, ...
+    'FontSize',cfg.stim_font_size,'FontWeight','bold', ...
+    'HorizontalAlignment','center','VerticalAlignment','middle', ...
     'Units','normalized','Interpreter','none');
+pdLen   = 0.05;
+hSquare = annotation('rectangle','FaceColor',[1 1 1],'EdgeColor','none', ...
+    'Position',[0, 1-pdLen, pdLen, pdLen]);
 
-% Small white square for photodiode timing marker (upper-left corner)
-pdiode_square_length = 0.05;
-hSquare = annotation('rectangle','FaceColor',[1 1 1],'EdgeColor','none', 'Position',[0, 1-pdiode_square_length, pdiode_square_length, pdiode_square_length]);
+%% ---- Trigger codes --------------------------------------------------
+TRIG_FIX_CROSS  = 1;
+TRIG_VIS        = 2;
+TRIG_METRONOME  = 4;
+TRIG_METRO_TICK = 8;
+TRIG_GO         = 16;
+TRIG_KEY        = 32;
+TRIG_ESC        = 64;
+TRIG_BREAK      = 128;
 
-%% devices setup
-% Define trigger code constants for event types
-TRIG_FIX_CROSS = 1; % Fixation cross display
-TRIG_VIS = 2; % Visual stimulus onset
-TRIG_DAF = 4; % DAF delay change
-TRIG_KEY = 8; % Key press event (space)
-TRIG_ESC = 16; % Escape pressed
-TRIG_BREAK = 64; % add break
-TRIG_GO = 128; % GO beep
-
-% Check if digital out is present
-doDigOut = isfield(cfg,'DIGOUT') && logical(cfg.DIGOUT);
-
-% Turn constant audio playback on
+doDigOut  = isfield(cfg,'DIGOUT') && logical(cfg.DIGOUT);
 flipState = 0;
 
-%% audio setup
-cfg = setup_audio_devices(cfg); 
-audWriter = audioDeviceWriter('SampleRate', cfg.aud_player_fs);
-aud_dev_list = getAudioDevices(audWriter); 
-aud_dev_out_ind = find(contains(aud_dev_list,cfg.aud_dev_out)); 
-audWriter.Device = aud_dev_list{aud_dev_out_ind}; 
+%% ---- Audio setup ----------------------------------------------------
+cfg = setup_audio_devices(cfg);
 
-% create go beep
-N  = round(cfg.go_beep_dur * cfg.aud_player_fs);
-t  = (0:N-1)'/cfg.aud_player_fs;
-go_beep_wave  = cfg.go_beep_amp*sin(2*pi*1000*t);
+audWriter        = audioDeviceWriter('SampleRate', cfg.aud_player_fs);
+aud_dev_list     = getAudioDevices(audWriter);
+idx              = find(contains(aud_dev_list, cfg.aud_dev_out), 1);
+audWriter.Device = aud_dev_list{idx};
 
+% GO beep waveform
+N_go         = round(cfg.go_beep_dur * cfg.aud_player_fs);
+t_go         = (0:N_go-1)' / cfg.aud_player_fs;
+go_beep_wave = cfg.go_beep_amp * sin(2*pi * cfg.go_beep_freq * t_go);
 
-%% Show instructions screen and wait for space keypress or escape abort
-if cfg.play_go_cue
-    instructions = {
-        'When text appears on the screen,',...
-        'wait until you hear the beep,',...
-        'then read it at your normal speaking speed.' ...
-        '',...
-        'Use a natural speaking voice.'
-    };
-elseif ~cfg.play_go_cue
-    instructions = {
-        'When text appears on the screen,',...
-        'read it out loud',...
-        'at your normal speaking speed.' ...
-        '',...
-        'Use a natural speaking voice.'
-    };
-end
-set(hText,'String',instructions,'FontSize',45,'Color',cfg.text_color); drawnow;
+% Single metronome tick waveform
+N_tick           = round(cfg.tick_dur * cfg.aud_player_fs);
+t_tick_v         = (0:N_tick-1)' / cfg.aud_player_fs;
+tick_wave_single = cfg.metronome_amplitude * sin(2*pi * cfg.tick_freq * t_tick_v);
 
-% Wait for SPACE (ESC abort)
+% Tick schedule: ticks at 0, 1/R, 2/R, ... (all onsets within metro_dur)
+tick_rel_times = (0 : floor(cfg.metro_dur * cfg.metro_rate))' / cfg.metro_rate;
+tick_rel_times = tick_rel_times(tick_rel_times < cfg.metro_dur + 1e-9);
+n_ticks        = numel(tick_rel_times);
+
+%% ---- Instructions screen --------------------------------------------
+set(hText,'String',{ ...
+    'When text appears on the screen,', ...
+    'wait until you hear the beep,', ...
+    'then read it at your normal speaking speed.', ...
+    '', 'Use a natural speaking voice.'}, ...
+    'FontSize',45,'Color',cfg.text_color);
+drawnow;
+
 while true
-    [space, esc] = KeyPoll();
+    [space,esc] = KeyPoll();
     if esc
         flipState = ~flipState;
-        log_event(eventFH, doDigOut, T.now(), [], [], 'control', [], TRIG_ESC, 'Key_Esc_At_Instructions', flipState);
-        safeQuit(); fclose(eventFH);  close(hfig); return;
+        log_event(eventFH,doDigOut,T.now(),[],[],'control',[],TRIG_ESC,'Key_Esc_At_Instructions',flipState);
+        fclose(eventFH); close(hfig); return;
     end
     if space
         flipState = ~flipState;
-        log_event(eventFH, doDigOut, T.now(), [], [], 'control', [], TRIG_KEY, 'Key_Space', flipState);
+        log_event(eventFH,doDigOut,T.now(),[],[],'control',[],TRIG_KEY,'Key_Space_Instructions',flipState);
         break;
     end
     T.wait(0.01);
 end
+set(hText,'String',''); drawnow;
 
-set(hText,'String','');
-drawnow;
-t0 = T.now(); % Task start time anchor
-
-% Send sync beep command to play sync tone on audio output
+% Sync beep + task-start marker
 audWriter(go_beep_wave);
-flipState = ~flipState;
-log_event(eventFH, doDigOut, t0, [], [], 'control', [], 0, 'Instructions_End', flipState);
+t_task_start = T.now();
+flipState    = ~flipState;
+log_event(eventFH,doDigOut,t_task_start,[],[],'control',[],0,'Task_Start',flipState);
 
-%% Main trial loop
+%% =====================================================================
+%%  Main trial loop
+%% =====================================================================
+escaped = false;
+
 for itrial = 1:cfg.ntrials
-    isCatch = trials.catch_trial(itrial);
 
-    % ITI + fixation
-    set(hText,'String','*','Color', tern(~isCatch,[0.7 0.7 0.7],'red'));
-    set(hSquare,'FaceColor',[0.3 0.3 0.3]);
-    drawnow;
+    if trials.metro_speech(itrial)
+        ttype = 'metro_speech';
+    else
+        ttype = 'speech';
+    end
+
+    % ==================================================================
+    % 1.  ITI — fixation cross
+    % ==================================================================
+    set(hText,'String','*','Color',[0.7 0.7 0.7],'FontSize',cfg.stim_font_size);
+    set(hSquare,'FaceColor',[0.3 0.3 0.3]); drawnow;
     tFixOn = T.now();
     flipState = ~flipState;
-    log_event(eventFH, doDigOut, tFixOn, [], [], tern(isCatch,'catch','speech'), [], TRIG_FIX_CROSS, 'Fixation_Cross_Onset', flipState);
+    log_event(eventFH,doDigOut,tFixOn,[],[],ttype,[],TRIG_FIX_CROSS,'Fixation_Cross_Onset',flipState);
 
-    % Keep fixation cross on for the jittered ITI duration
-    itiDur = cfg.iti(1) + rand*(cfg.iti(2)-cfg.iti(1));
-    T.wait(itiDur);
-
-        flipState = ~flipState;
-        log_event(eventFH, doDigOut, T.now(), [], [], 'speech', [], TRIG_DAF, sprintf('DAF_On_cmd(ms=%d)', trials.delay(itrial)), flipState);
-        fprintf(['\n trial ',num2str(itrial), ' / ', num2str(cfg.ntrials), ',   metronmic_condition = ', num2str(trials.metro_speech(itrial)),'\n'])
-
-    % Visual on, fixation cross off
-    set(hSquare,'FaceColor',[0 0 0]);
-    set(hText,'String', text_wrapped_all{trials.stim_idx(itrial)}, 'Color',cfg.text_color,'FontSize',cfg.stim_font_size);
-    drawnow;
-    tVisOn = T.now();
-    flipState = ~flipState;
-    log_event(eventFH, doDigOut, tVisOn, [], [], tern(isCatch,'catch','speech'), trials.stim{itrial}, TRIG_VIS, 'Visual_Onset', flipState);
-
-    
-    % GO cue and reponse window
-    if cfg.play_go_cue
-        % preparatory window
-        tPrepStart = T.now();
-        while T.now() - tPrepStart < trials.go_latency(itrial) 
-            [~, esc] = KeyPoll();
-            if esc
-    
-                flipState = ~flipState;
-                log_event(eventFH, doDigOut, T.now(), [], [], tern(isCatch,'catch','speech'), [], TRIG_ESC, 'Key_Esc', flipState);
-                safeQuit(); fclose(eventFH); close(hfig); return
-            end
-            T.wait(0.005); % wait 5ms before running the loop again
-        end
-
-        % play go cue
-        %%%% running sound.m usually takes about 25ms (regardless of the duration of the sounds)
-        %%%% .... so getting tGoOn before starting playback will be this much earlier than getting it afterward
-        audWriter(go_beep_wave);
-        tGoOn = T.now();
-        flipState = ~flipState;
-        log_event(eventFH, doDigOut, tGoOn, [], [], tern(isCatch,'catch','speech'), [], TRIG_GO, 'Go_Beep_Onset', flipState);
-        tSpeakStart = tGoOn; % speech window starts when go cue was played
-    elseif ~cfg.play_go_cue % no go cue
-        tSpeakStart = tVisOn; % speech window starts immeidately after visual cue
-    end
-    % % % % 
-    % % % % elseif ~cfg.play_go_cue % no go cue - subject start speaking immediately after text appears
-
-        % Speaking window
-        %%%% this window starts either after the go beep (if cfg.play_go_cue==true, see above) or immediately after stim text appears
-    while T.now() - tSpeakStart < cfg.response_window
-        [~, esc] = KeyPoll();
-        if esc
-
+    itiDur  = cfg.iti(1) + rand*(cfg.iti(2) - cfg.iti(1));
+    tItiEnd = tFixOn + itiDur;
+    while T.now() < tItiEnd - 0.001
+        [~,esc] = KeyPoll();
+        if esc && ~escaped
+            escaped = true;
             flipState = ~flipState;
-            log_event(eventFH, doDigOut, T.now(), [], [], tern(isCatch,'catch','speech'), [], TRIG_ESC, 'Key_Esc', flipState);
-            safeQuit(); fclose(eventFH); close(hfig); return
+            log_event(eventFH,doDigOut,T.now(),[],[],ttype,[],TRIG_ESC,'Key_Esc_Detected',flipState);
         end
-        T.wait(0.005); % wait 5ms before running the loop again
+        T.wait(0.005);
+    end
+    T.until(tItiEnd);
+
+    % ==================================================================
+    % 2a.  Visual stimulus ON
+    % ==================================================================
+    set(hSquare,'FaceColor',[0 0 0]);
+    set(hText,'String',text_wrapped_all{trials.stim_idx(itrial)}, ...
+        'Color',cfg.text_color,'FontSize',cfg.stim_font_size);
+    drawnow;
+    tVisOn    = T.now();
+    flipState = ~flipState;
+    log_event(eventFH,doDigOut,tVisOn,[],[],ttype,trials.stim{itrial},TRIG_VIS,'Visual_Onset',flipState);
+    fprintf('\n[%d/%d]  metro=%d  |  %s\n', ...
+        itrial, cfg.ntrials, trials.metro_speech(itrial), trials.stim{itrial});
+
+    % ==================================================================
+    % 2b.  Metronome epoch  (always cfg.metro_dur s referenced from tVisOn)
+    % ==================================================================
+    tMetroEpochEnd = tVisOn + cfg.metro_dur;
+
+    if trials.metro_speech(itrial)
+        % ---- metro_speech trial: play ticks, log each one ----
+
+        tMetroStart = T.now();   % ≈ tVisOn; reference for tick scheduling
+        tLastTick   = tMetroStart;
+
+        for itick = 1:n_ticks
+
+            tTick = tMetroStart + tick_rel_times(itick);
+
+            % Wait until 2 ms before tick, polling ESC in the gap
+            while T.now() < tTick - 0.002
+                [~,esc] = KeyPoll();
+                if esc && ~escaped
+                    escaped = true;
+                    flipState = ~flipState;
+                    log_event(eventFH,doDigOut,T.now(),[],[],ttype,[],TRIG_ESC,'Key_Esc_Detected',flipState);
+                end
+                T.wait(0.001);
+            end
+            T.until(tTick);                  % precision spin for final ≤ 2 ms
+
+            audWriter(tick_wave_single);     % play tick
+            tActual   = T.now();
+            tLastTick = tActual;
+
+            % First tick: TRIG_METRONOME (onset) BEFORE TRIG_METRO_TICK
+            if itick == 1
+                flipState = ~flipState;
+                log_event(eventFH,doDigOut,tActual,cfg.tick_dur,[],ttype,[],TRIG_METRONOME,'Metronome_Onset',flipState);
+            end
+            flipState = ~flipState;
+            log_event(eventFH,doDigOut,tActual,cfg.tick_dur,[],ttype,[],TRIG_METRO_TICK,sprintf('Tick_%d',itick),flipState);
+        end
+
+        % Metronome offset = end of last tick
+        T.until(tLastTick + cfg.tick_dur);
+        flipState = ~flipState;
+        log_event(eventFH,doDigOut,T.now(),0,[],ttype,[],TRIG_METRONOME,'Metronome_Offset',flipState);
+
+        % Wait out any remaining metro epoch time
+        while T.now() < tMetroEpochEnd - 0.001
+            [~,esc] = KeyPoll();
+            if esc && ~escaped
+                escaped = true;
+                flipState = ~flipState;
+                log_event(eventFH,doDigOut,T.now(),[],[],ttype,[],TRIG_ESC,'Key_Esc_Detected',flipState);
+            end
+            T.wait(0.005);
+        end
+        T.until(tMetroEpochEnd);
+
+    else
+        % ---- speech-only trial: identical timing, silence ----
+        while T.now() < tMetroEpochEnd - 0.001
+            [~,esc] = KeyPoll();
+            if esc && ~escaped
+                escaped = true;
+                flipState = ~flipState;
+                log_event(eventFH,doDigOut,T.now(),[],[],ttype,[],TRIG_ESC,'Key_Esc_Detected',flipState);
+            end
+            T.wait(0.005);
+        end
+        T.until(tMetroEpochEnd);
     end
 
-    % % % % end
+    % ==================================================================
+    % 3.  Jittered silent delay  (pre-computed per trial)
+    % ==================================================================
+    tDelayEnd = T.now() + trials.go_latency(itrial);
+    while T.now() < tDelayEnd - 0.001
+        [~,esc] = KeyPoll();
+        if esc && ~escaped
+            escaped = true;
+            flipState = ~flipState;
+            log_event(eventFH,doDigOut,T.now(),[],[],ttype,[],TRIG_ESC,'Key_Esc_Detected',flipState);
+        end
+        T.wait(0.005);
+    end
+    T.until(tDelayEnd);
 
+    % ==================================================================
+    % 4.  GO beep
+    % ==================================================================
+    if cfg.play_go_cue
+        audWriter(go_beep_wave);
+        tGoOn     = T.now();
+        flipState = ~flipState;
+        log_event(eventFH,doDigOut,tGoOn,cfg.go_beep_dur,[],ttype,[],TRIG_GO,'Go_Beep_Onset',flipState);
+        tSpeechStart = tGoOn;
+    else
+        tSpeechStart = T.now();
+    end
 
-    % Visual OFF, reset photodiode square
+    % ==================================================================
+    % 5.  Speech window
+    % ==================================================================
+    tSpeechEnd = tSpeechStart + cfg.speech_window_dur;
+    while T.now() < tSpeechEnd - 0.001
+        [~,esc] = KeyPoll();
+        if esc && ~escaped
+            escaped = true;
+            flipState = ~flipState;
+            log_event(eventFH,doDigOut,T.now(),[],[],ttype,[],TRIG_ESC,'Key_Esc_Detected',flipState);
+        end
+        T.wait(0.005);
+    end
+    T.until(tSpeechEnd);
+
+    % ==================================================================
+    % 6.  Visual OFF
+    % ==================================================================
     set(hText,'String','');
-    set(hSquare,'FaceColor',[1 1 1]);
-    drawnow;
-    tVisOff = T.now();
+    set(hSquare,'FaceColor',[1 1 1]); drawnow;
+    tVisOff   = T.now();
     flipState = ~flipState;
-    log_event(eventFH, doDigOut, tVisOff, [], [], tern(isCatch,'catch','speech'), [], TRIG_VIS, 'Visual_Off', flipState);
+    log_event(eventFH,doDigOut,tVisOff,[],[],ttype,[],TRIG_VIS,'Visual_Off',flipState);
 
-    % Optional pause between trials (message in command window)
-    if cfg.STOP_BETWEEN_TRIALS
-        fprintf('Trial %d/%d complete. Press SPACE to continue...\n', itrial, cfg.ntrials);
+    % ---- Append trial row to TSV ----
+    if itrial == 1
+        writetable(trials(itrial,:), cfg.TRIAL_FILENAME, ...
+            'Delimiter','\t','FileType','text','WriteVariableNames',true);
+    else
+        writetable(trials(itrial,:), cfg.TRIAL_FILENAME, ...
+            'Delimiter','\t','FileType','text','WriteMode','append','WriteVariableNames',false);
+    end
+
+    % ---- Exit cleanly if ESC was pressed during this trial ----
+    if escaped
+        fprintf('ESC detected — exiting after trial %d/%d.\n', itrial, cfg.ntrials);
+        break;
+    end
+
+    % ==================================================================
+    % Between-trial pauses
+    % ==================================================================
+    doPause = isfinite(cfg.pause_every_n_trials) && ...
+              mod(itrial, cfg.pause_every_n_trials) == 0 && ...
+              itrial < cfg.ntrials;
+
+    if doPause
+        %---- Scheduled rest break ----
+        flipState = ~flipState;
+        log_event(eventFH,doDigOut,T.now(),[],[],'control',[],TRIG_BREAK, ...
+            sprintf('Break_Start_After_Trial_%d',itrial),flipState);
+
+        set(hText,'String',{'Rest break','','Press SPACE to continue.'}, ...
+            'FontSize',40,'Color',cfg.text_color);
+        set(hSquare,'FaceColor',[0 0 0]); drawnow;
+        fprintf('=== Break after trial %d/%d — press SPACE to resume ===\n', itrial, cfg.ntrials);
+
         while true
-            [space, esc] = KeyPoll();
+            [space,esc] = KeyPoll();
             if esc
-
+                escaped = true;
                 flipState = ~flipState;
-                log_event(eventFH, doDigOut, T.now(), [], [], tern(isCatch,'catch','speech'), [], TRIG_ESC, 'Key_Esc', flipState);
-                safeQuit(); fclose(eventFH); close(hfig); return
-            end
-            if space
+                log_event(eventFH,doDigOut,T.now(),[],[],'control',[],TRIG_ESC,'Key_Esc_At_Break',flipState);
                 break;
             end
+            if space, break; end
             T.wait(0.01);
         end
-    end
+        set(hText,'String',''); drawnow;
 
-    % Append current trial row to trial results file
-    if itrial == 1
-        writetable(trials(itrial,:), cfg.TRIAL_FILENAME, 'Delimiter','\t','FileType','text', 'WriteVariableNames', true);
-    else
-        writetable(trials(itrial,:), cfg.TRIAL_FILENAME, 'Delimiter','\t','FileType','text', 'WriteMode','append', 'WriteVariableNames', false);
-    end
+        flipState = ~flipState;
+        log_event(eventFH,doDigOut,T.now(),[],[],'control',[],TRIG_BREAK, ...
+            sprintf('Break_End_After_Trial_%d',itrial),flipState);
 
-    if cfg.n_blocks > 1
-        currentBlock = trials.block(itrial);  % Current trial's block number
-        blockTrials = find(trials.block == currentBlock);  % Trial indices in this block
-        
-        % If this is the last trial in the block and not the last overall trial
-        if itrial == blockTrials(end) && itrial < cfg.ntrials
-            flipState = ~flipState;
-            log_event(eventFH, doDigOut, T.now(), [], [], 'control', [], TRIG_BREAK, sprintf('Block_%d_Break_Start', currentBlock), flipState);
+        if escaped, break; end
 
-            % Display break message on screen and console
-            drawnow;
-            fprintf('Block %d/%d finished; press spacebar to continue...\n', currentBlock, cfg.n_blocks);
-            commandwindow %%% AM note: probably could replace this and next line using the KeyPoll function
-            pause()
-
-            if ~ishandle(hfig), break; end                 % window closed during break
-            figure(hfig) % re-focus on stim window
-
-            flipState = ~flipState;
-            log_event(eventFH, doDigOut, T.now(), [], [], 'control', [], TRIG_BREAK, sprintf('Block_%d_Break_End', currentBlock), flipState);
-            set(hText,'String',''); drawnow;
+    elseif cfg.STOP_BETWEEN_TRIALS && itrial < cfg.ntrials
+        %---- Per-trial manual advance ----
+        fprintf('Trial %d/%d complete. Press SPACE for next trial...\n', itrial, cfg.ntrials);
+        while true
+            [space,esc] = KeyPoll();
+            if esc
+                escaped = true;
+                flipState = ~flipState;
+                log_event(eventFH,doDigOut,T.now(),[],[],'control',[],TRIG_ESC,'Key_Esc_Between_Trials',flipState);
+                break;
+            end
+            if space, break; end
+            T.wait(0.01);
         end
+        if escaped, break; end
     end
-end
 
-%% Cleanup
-fclose(eventFH);
-close(hfig);
+end   % for itrial
+
+%% ---- Cleanup -------------------------------------------------------
 fprintf('Task complete.\n');
+fclose(eventFH);
+if ishandle(hfig), close(hfig); end
 
 
-
-%% SUBFUNCTIONS
-
-function out = tern(cond, a, b)
-    if cond, out=a; else, out=b; end
-end
-
-%%% function for getting Esc and Space keypress state
-function [space, esc] = KeyPoll()
-    space = System.Windows.Input.Keyboard.IsKeyDown(System.Windows.Input.Key.Space);
-    esc   = System.Windows.Input.Keyboard.IsKeyDown(System.Windows.Input.Key.Escape);
-end
-
-function safeQuit()
-    fprintf('ESC pressed → quitting task\n');
-    if isfield(cfg, 'DAF_MIDI') && ~isempty(cfg.midi_dev_idx)
-        cfg.midi_dev_idx = [];
+%% =================== Local functions ================================
+    function [space, esc] = KeyPoll()
+        space = System.Windows.Input.Keyboard.IsKeyDown(System.Windows.Input.Key.Space);
+        esc   = System.Windows.Input.Keyboard.IsKeyDown(System.Windows.Input.Key.Escape);
     end
-end
 
-end
+end   % task_metro

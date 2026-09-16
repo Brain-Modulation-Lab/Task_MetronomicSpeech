@@ -25,10 +25,11 @@ cfg.iti                   = [0.75 1.25];   % jittered inter-trial interval (s)  
 cfg.max_trials            = inf;           % cap on total trials (inf = run them all)
 cfg.randomize_order       = true;          % shuffle sentence order within each block
 cfg.trials_per_mini_block = 5;       % there will be at least this many trials of a condition in a row
+cfg.pause_every_n_trials = 30;       % pause for a break at this interval (regardless of block length)
 
 %% ---------------- Metronomic task parameters (ported from metronomic_task_demo) ----------------
-cfg.metronome_duration      = 1.5;          % s the auditory metronome plays (pre-go epoch 1)
-cfg.beat_dur                = 0.33;         % s between metronome beats = metronome rate
+cfg.metro_dur      = 1.5;          % s the auditory metronome plays (pre-go epoch 1)
+cfg.metro_rate             = 3;         % rate in Hz of audio metronome
 cfg.go_latency        = [0.75 1.24];  % jittered silent period (s) after metronome, before GO beep (epoch 2)
 cfg.speech_window_dur       = 5;            % s between GO beep onset and visual stimulus disappearing
 cfg.stim_font_size          = 34;           % stimulus font size

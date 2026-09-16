@@ -20,16 +20,16 @@ cfg.SESSION = 'preop';    % 'preop' or 'intraop' (drives folder naming + n_block
 
 %% ---------------- Run / session options ----------------
 cfg.RECORD_AUDIO          =  1; 
-cfg.wait_for_space        = true;          % require SPACE to start each trial
+cfg.STOP_BETWEEN_TRIALS        = true;          % require SPACE to start each trial
 cfg.iti                   = [0.75 1.25];   % jittered inter-trial interval (s)   [was iti_range in the demo]
 cfg.max_trials            = inf;           % cap on total trials (inf = run them all)
 cfg.randomize_order       = true;          % shuffle sentence order within each block
 cfg.trials_per_mini_block = 5;       % there will be at least this many trials of a condition in a row
 
 %% ---------------- Metronomic task parameters (ported from metronomic_task_demo) ----------------
-cfg.metronome_duration      = 1.5;          % s the auditory metronome plays (pre-go epoch 1)
-cfg.beat_dur                = 0.33;         % s between metronome beats = metronome rate
-cfg.pre_speech_delay        = [0.75 1.24];  % jittered silent period (s) after metronome, before GO beep (epoch 2)
+cfg.metro_dur      = 1.5;          % s the auditory metronome plays (pre-go epoch 1)
+cfg.metro_rate             = 3;         % rate in Hz of audio metronome
+cfg.go_latency        = [0.75 1.24];  % jittered silent period (s) after metronome, before GO beep (epoch 2)
 cfg.speech_window_dur       = 5;            % s between GO beep onset and visual stimulus disappearing
 cfg.stim_font_size          = 34;           % stimulus font size
 cfg.stim_max_char_per_line  = 26;       % wrap width for the sentence (chars per line)
@@ -103,15 +103,13 @@ cfg.PATH_STIMDIR = fullfile(cfg.PATH_TASK, 'stimuli');
 cfg.PATH_SUB            = fullfile(cfg.PATH_SOURCEDATA, ['sub-' cfg.SUBJECT]);
 cfg.PATH_SES         = fullfile(cfg.PATH_SUB, ['ses-' cfg.SESSION]);
 cfg.PATH_AUDIO    = fullfile(cfg.PATH_SES, 'audio');
-cfg.PATH_AUDIO    = fullfile(cfg.PATH_SES, 'audio');
-
-cfg.PATH_AUDIO = PATH_AUDIO;
+cfg.PATH_SRC_TASK    = fullfile(cfg.PATH_SES, 'task');
 
 %% ---------------- Run basename, filenames ----------------
 fileBaseName = ['sub-' cfg.SUBJECT '_ses-' cfg.SESSION '_task-' cfg.TASK '_run-'];
 
 % Increment run ID based on existing event files for this session
-allEventFiles = dir(fullfile(pathSubSesDataType, [fileBaseName '*_events.tsv']));
+allEventFiles = dir(fullfile(cfg.PATH_SRC_TASK, [fileBaseName '*_events.tsv']));
 if ~isempty(allEventFiles)
     prevRunIds = regexp({allEventFiles.name}, '_run-(\d+)_', 'tokens', 'ignorecase');
     prevRunIds = cellfun(@(x) str2double(x{1,1}), prevRunIds, 'UniformOutput', true);
@@ -121,11 +119,10 @@ else
 end
 
 cfg.RUN_ID       = runId;
-cfg.PATH_LOG     = pathSubSesDataType;
 cfg.BASE_NAME    = [fileBaseName, sprintf('%02d_', runId)];
-cfg.LOG_FILENAME   = fullfile(cfg.PATH_LOG, [cfg.BASE_NAME 'log.txt']);
-cfg.EVENT_FILENAME = fullfile(cfg.PATH_LOG, [cfg.BASE_NAME 'events.tsv']);
-cfg.TRIAL_FILENAME = fullfile(cfg.PATH_LOG, [cfg.BASE_NAME 'trials.tsv']);
+cfg.LOG_FILENAME   = fullfile(cfg.PATH_SRC_TASK, [cfg.BASE_NAME 'log.txt']);
+cfg.EVENT_FILENAME = fullfile(cfg.PATH_SRC_TASK, [cfg.BASE_NAME 'events.tsv']);
+cfg.TRIAL_FILENAME = fullfile(cfg.PATH_SRC_TASK, [cfg.BASE_NAME 'trials.tsv']);
 cfg.AUDIO_FILENAME = fullfile(cfg.PATH_AUDIO, [cfg.BASE_NAME(1:end-1) '.wav']);
 
 %% ---------------- Diary (console logging) ----------------
@@ -191,7 +188,7 @@ task_function = [pwd filesep cfg.TASK_FUNCTION];
 if ~isfile(task_function)
     error('%s not found in current folder', cfg.TASK_FUNCTION);
 end
-copyfile(task_function, [cfg.PATH_LOG filesep cfg.BASE_NAME 'script.m']); % copy for reproducibility
+copyfile(task_function, [cfg.PATH_SRC_TASK filesep cfg.BASE_NAME 'script.m']); % copy for reproducibility
 feval(strrep(cfg.TASK_FUNCTION,'.m',''), cfg);                            % run task_metronomic(cfg)
 
 close all;
