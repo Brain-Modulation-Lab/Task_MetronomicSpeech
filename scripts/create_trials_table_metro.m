@@ -47,7 +47,8 @@ cfg.mini_blocks_per_condition = cfg.n_unique_stim / cfg.trials_per_mini_block;
 cfg.mini_blocks_per_block = cfg.mini_blocks_per_condition * nConds;
 
 %% Helper: build one balanced block
-    function [stim_order, metro_order] = build_one_block(force_first_miniblock_nonmetro)
+% forced_first_condition: false = nonmetro first, true = metro first
+    function [stim_order, metro_order] = build_one_block(forced_first_condition)
 
         % Randomize stimulus order separately for each condition.
         nonmetro_stim = randperm(cfg.n_unique_stim).';
@@ -90,19 +91,17 @@ cfg.mini_blocks_per_block = cfg.mini_blocks_per_condition * nConds;
             mb_order = (1:nMiniBlocks).';
         end
 
-        % Exception: the first mini-block of the experiment must be nonmetro.
-        if force_first_miniblock_nonmetro
-            nonmetro_positions = find(~mb_condition(mb_order));
-
-            if isempty(nonmetro_positions)
-                error('Internal error: no nonmetro mini-blocks found.')
-            end
-
-            % Choose one of the nonmetro mini-blocks currently in the order
-            % and move it to the front.
-            chosen_pos = nonmetro_positions(randi(numel(nonmetro_positions)));
-            mb_order = [mb_order(chosen_pos); mb_order([1:chosen_pos-1, chosen_pos+1:end])];
+        % Force the first mini-block to the required condition.
+        if forced_first_condition
+            target_positions = find( mb_condition(mb_order));   % metro positions
+        else
+            target_positions = find(~mb_condition(mb_order));   % nonmetro positions
         end
+        if isempty(target_positions)
+            error('Internal error: no mini-blocks found for the forced first condition.')
+        end
+        chosen_pos = target_positions(randi(numel(target_positions)));
+        mb_order = [mb_order(chosen_pos); mb_order([1:chosen_pos-1, chosen_pos+1:end])];
 
         % Expand mini-blocks into trial-level vectors.
         stim_order  = zeros(cfg.trials_per_block, 1);
@@ -142,8 +141,7 @@ for iblock = 1:cfg.n_blocks
     % If this is the first block, or if trials should vary across blocks,
     % generate a new within-block order. Otherwise reuse the previous one.
     if iblock == 1
-        force_first_miniblock_nonmetro = iblock == 1;
-        [stim_order, metro_order] = build_one_block(force_first_miniblock_nonmetro);
+        [stim_order, metro_order] = build_one_block(cfg.first_trial_is_metro);
     end
 
     rows = writeIdx:(writeIdx + cfg.trials_per_block - 1);

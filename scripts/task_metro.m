@@ -12,13 +12,18 @@ function task_metro(cfg)
 %  6. Visual off
 %
 % Logging
-%  First tick   → TRIG_METRONOME (Metronome_Onset) written first, then TRIG_METRO_TICK
-%  Every tick   → TRIG_METRO_TICK (Tick_N)
-%  Last tick end→ TRIG_METRONOME (Metronome_Offset)
+%  First tick   -> TRIG_METRONOME (Metronome_Onset) written first, then TRIG_METRO_TICK
+%  Every tick   -> TRIG_METRO_TICK (Tick_N)
+%  Last tick end-> TRIG_METRONOME (Metronome_Offset)
 %
 % ESC handling
 %  During a trial  : escaped flag set; current trial completes normally, then exit.
 %  During a pause  : immediate clean exit.
+%
+% Audio device keep-warm
+%  All timed wait loops stream zeros via audWriter rather than calling
+%  pause(). This prevents the device going idle between calls, which
+%  caused a startup artifact (audible double-hit) on the first metro tick.
 
 %% ---- Default optional fields ----------------------------------------
 if ~isfield(cfg,'play_go_cue'),           cfg.play_go_cue           = true;  end
@@ -40,7 +45,7 @@ NET.addAssembly('PresentationCore');
 %% ---- Timing helpers -------------------------------------------------
 ticH  = tic;
 t0abs = seconds(timeofday(datetime('now')));  % s-since-midnight at task start
-T.now   = @()  t0abs + toc(ticH);            % current absolute time
+T.now   = @()  t0abs + toc(ticH);
 T.wait  = @(s) pause(max(0, s));
 T.until = @(t) pause(max(0, t - T.now()));
 
@@ -95,6 +100,12 @@ audWriter        = audioDeviceWriter('SampleRate', cfg.aud_player_fs);
 aud_dev_list     = getAudioDevices(audWriter);
 idx              = find(contains(aud_dev_list, cfg.aud_dev_out), 1);
 audWriter.Device = aud_dev_list{idx};
+audWriter.SupportVariableSizeInput = true;   % allow variable frame sizes
+
+% Chunk size for all streaming loops (metro waveform AND keep-warm silence).
+% 512 samples ≈ 11.6 ms at 44100 Hz — small enough for accurate tick logging,
+% large enough not to stress the scheduler.
+CHUNK_SIZE = 512;
 
 % GO beep waveform
 N_go         = round(cfg.go_beep_dur * cfg.aud_player_fs);
@@ -110,6 +121,16 @@ tick_wave_single = cfg.metronome_amplitude * sin(2*pi * cfg.tick_freq * t_tick_v
 tick_rel_times = (0 : floor(cfg.metro_dur * cfg.metro_rate))' / cfg.metro_rate;
 tick_rel_times = tick_rel_times(tick_rel_times < cfg.metro_dur + 1e-9);
 n_ticks        = numel(tick_rel_times);
+
+% Pre-build full metronome waveform: ticks embedded at correct sample
+% positions in a zero background.
+metro_total_samples = round(cfg.metro_dur * cfg.aud_player_fs);
+metro_wave          = zeros(metro_total_samples, 1);
+for itick_pre = 1:n_ticks
+    s1 = round(tick_rel_times(itick_pre) * cfg.aud_player_fs) + 1;
+    s2 = min(s1 + N_tick - 1, metro_total_samples);
+    metro_wave(s1:s2) = tick_wave_single(1:(s2-s1+1));
+end
 
 %% ---- Instructions screen --------------------------------------------
 set(hText,'String',{ ...
@@ -157,23 +178,26 @@ for itrial = 1:cfg.ntrials
 
     % ==================================================================
     % 1.  ITI — fixation cross
+    %     Silence is streamed (not paused) to keep the audio device warm.
+    %     If the device goes idle here, it produces a startup artifact
+    %     (double-hit sound) on the very first metro tick.
     % ==================================================================
     set(hText,'String','*','Color',[0.7 0.7 0.7],'FontSize',cfg.stim_font_size);
     set(hSquare,'FaceColor',[0.3 0.3 0.3]); drawnow;
-    tFixOn = T.now();
+    tFixOn    = T.now();
     flipState = ~flipState;
     log_event(eventFH,doDigOut,tFixOn,[],[],ttype,[],TRIG_FIX_CROSS,'Fixation_Cross_Onset',flipState);
 
     itiDur  = cfg.iti(1) + rand*(cfg.iti(2) - cfg.iti(1));
     tItiEnd = tFixOn + itiDur;
-    while T.now() < tItiEnd - 0.001
+    while T.now() < tItiEnd - CHUNK_SIZE/cfg.aud_player_fs
         [~,esc] = KeyPoll();
         if esc && ~escaped
-            escaped = true;
+            escaped   = true;
             flipState = ~flipState;
             log_event(eventFH,doDigOut,T.now(),[],[],ttype,[],TRIG_ESC,'Key_Esc_Detected',flipState);
         end
-        T.wait(0.005);
+        audWriter(zeros(CHUNK_SIZE, 1));   % silence — keeps device active
     end
     T.until(tItiEnd);
 
@@ -191,72 +215,67 @@ for itrial = 1:cfg.ntrials
         itrial, cfg.ntrials, trials.metro_speech(itrial), trials.stim{itrial});
 
     % ==================================================================
-    % 2b.  Metronome epoch  (always cfg.metro_dur s referenced from tVisOn)
+    % 2b.  Metronome epoch  (cfg.metro_dur s, referenced from tVisOn)
     % ==================================================================
     tMetroEpochEnd = tVisOn + cfg.metro_dur;
 
     if trials.metro_speech(itrial)
-        % ---- metro_speech trial: play ticks, log each one ----
 
-        tMetroStart = T.now();   % ≈ tVisOn; reference for tick scheduling
-        tLastTick   = tMetroStart;
+        % Log first tick: TRIG_METRONOME (priority) then TRIG_METRO_TICK
+        tMetroStart = T.now();
+        flipState   = ~flipState;
+        log_event(eventFH,doDigOut,tMetroStart,cfg.tick_dur,[],ttype,[],TRIG_METRONOME,'Metronome_Onset',flipState);
+        flipState   = ~flipState;
+        log_event(eventFH,doDigOut,tMetroStart,cfg.tick_dur,[],ttype,[],TRIG_METRO_TICK,'Tick_1',flipState);
 
-        for itick = 1:n_ticks
+        % Stream pre-built waveform in fixed-size chunks.
+        % Each write blocks for ~CHUNK_SIZE/fs s, pacing the loop and
+        % keeping the device buffer continuously fed.
+        pos            = 1;
+        tick_logged    = false(n_ticks, 1);
+        tick_logged(1) = true;                           % first tick already logged above
+        tick_log_times = tMetroStart + tick_rel_times;   % nominal wall-clock times
 
-            tTick = tMetroStart + tick_rel_times(itick);
+        while pos <= metro_total_samples
+            chunk_end = min(pos + CHUNK_SIZE - 1, metro_total_samples);
+            audWriter(metro_wave(pos:chunk_end));
+            pos  = chunk_end + 1;
+            tNow = T.now();
 
-            % Wait until 2 ms before tick, polling ESC in the gap
-            while T.now() < tTick - 0.002
-                [~,esc] = KeyPoll();
-                if esc && ~escaped
-                    escaped = true;
+            % Log any ticks whose nominal time has now passed
+            for it = 2:n_ticks
+                if ~tick_logged(it) && tNow >= tick_log_times(it)
                     flipState = ~flipState;
-                    log_event(eventFH,doDigOut,T.now(),[],[],ttype,[],TRIG_ESC,'Key_Esc_Detected',flipState);
+                    log_event(eventFH,doDigOut,tNow,cfg.tick_dur,[],ttype,[], ...
+                        TRIG_METRO_TICK,sprintf('Tick_%d',it),flipState);
+                    tick_logged(it) = true;
                 end
-                T.wait(0.001);
             end
-            T.until(tTick);                  % precision spin for final ≤ 2 ms
 
-            audWriter(tick_wave_single);     % play tick
-            tActual   = T.now();
-            tLastTick = tActual;
-
-            % First tick: TRIG_METRONOME (onset) BEFORE TRIG_METRO_TICK
-            if itick == 1
+            [~,esc] = KeyPoll();
+            if esc && ~escaped
+                escaped   = true;
                 flipState = ~flipState;
-                log_event(eventFH,doDigOut,tActual,cfg.tick_dur,[],ttype,[],TRIG_METRONOME,'Metronome_Onset',flipState);
+                log_event(eventFH,doDigOut,T.now(),[],[],ttype,[],TRIG_ESC,'Key_Esc_Detected',flipState);
             end
-            flipState = ~flipState;
-            log_event(eventFH,doDigOut,tActual,cfg.tick_dur,[],ttype,[],TRIG_METRO_TICK,sprintf('Tick_%d',itick),flipState);
         end
 
-        % Metronome offset = end of last tick
-        T.until(tLastTick + cfg.tick_dur);
+        % Wait out any remaining epoch time, then log metronome offset
+        T.until(tMetroEpochEnd);
         flipState = ~flipState;
         log_event(eventFH,doDigOut,T.now(),0,[],ttype,[],TRIG_METRONOME,'Metronome_Offset',flipState);
 
-        % Wait out any remaining metro epoch time
-        while T.now() < tMetroEpochEnd - 0.001
-            [~,esc] = KeyPoll();
-            if esc && ~escaped
-                escaped = true;
-                flipState = ~flipState;
-                log_event(eventFH,doDigOut,T.now(),[],[],ttype,[],TRIG_ESC,'Key_Esc_Detected',flipState);
-            end
-            T.wait(0.005);
-        end
-        T.until(tMetroEpochEnd);
-
     else
-        % ---- speech-only trial: identical timing, silence ----
-        while T.now() < tMetroEpochEnd - 0.001
+        % Non-metro trial: stream silence for the identical epoch duration.
+        % Streaming (not pausing) keeps the device warm for the delay period.
+        while T.now() < tMetroEpochEnd - CHUNK_SIZE/cfg.aud_player_fs
             [~,esc] = KeyPoll();
             if esc && ~escaped
-                escaped = true;
+                escaped   = true;
                 flipState = ~flipState;
                 log_event(eventFH,doDigOut,T.now(),[],[],ttype,[],TRIG_ESC,'Key_Esc_Detected',flipState);
             end
-            T.wait(0.005);
+            audWriter(zeros(CHUNK_SIZE, 1));
         end
         T.until(tMetroEpochEnd);
     end
@@ -265,14 +284,14 @@ for itrial = 1:cfg.ntrials
     % 3.  Jittered silent delay  (pre-computed per trial)
     % ==================================================================
     tDelayEnd = T.now() + trials.go_latency(itrial);
-    while T.now() < tDelayEnd - 0.001
+    while T.now() < tDelayEnd - CHUNK_SIZE/cfg.aud_player_fs
         [~,esc] = KeyPoll();
         if esc && ~escaped
-            escaped = true;
+            escaped   = true;
             flipState = ~flipState;
             log_event(eventFH,doDigOut,T.now(),[],[],ttype,[],TRIG_ESC,'Key_Esc_Detected',flipState);
         end
-        T.wait(0.005);
+        audWriter(zeros(CHUNK_SIZE, 1));
     end
     T.until(tDelayEnd);
 
@@ -293,14 +312,14 @@ for itrial = 1:cfg.ntrials
     % 5.  Speech window
     % ==================================================================
     tSpeechEnd = tSpeechStart + cfg.speech_window_dur;
-    while T.now() < tSpeechEnd - 0.001
+    while T.now() < tSpeechEnd - CHUNK_SIZE/cfg.aud_player_fs
         [~,esc] = KeyPoll();
         if esc && ~escaped
-            escaped = true;
+            escaped   = true;
             flipState = ~flipState;
             log_event(eventFH,doDigOut,T.now(),[],[],ttype,[],TRIG_ESC,'Key_Esc_Detected',flipState);
         end
-        T.wait(0.005);
+        audWriter(zeros(CHUNK_SIZE, 1));
     end
     T.until(tSpeechEnd);
 
@@ -330,13 +349,15 @@ for itrial = 1:cfg.ntrials
 
     % ==================================================================
     % Between-trial pauses
+    % (T.wait used here — indefinite user pause, device may go idle,
+    %  but ITI silence streaming on the next trial re-warms it.)
     % ==================================================================
     doPause = isfinite(cfg.pause_every_n_trials) && ...
               mod(itrial, cfg.pause_every_n_trials) == 0 && ...
               itrial < cfg.ntrials;
 
     if doPause
-        %---- Scheduled rest break ----
+        % ---- Scheduled rest break ----
         flipState = ~flipState;
         log_event(eventFH,doDigOut,T.now(),[],[],'control',[],TRIG_BREAK, ...
             sprintf('Break_Start_After_Trial_%d',itrial),flipState);
@@ -349,7 +370,7 @@ for itrial = 1:cfg.ntrials
         while true
             [space,esc] = KeyPoll();
             if esc
-                escaped = true;
+                escaped   = true;
                 flipState = ~flipState;
                 log_event(eventFH,doDigOut,T.now(),[],[],'control',[],TRIG_ESC,'Key_Esc_At_Break',flipState);
                 break;
@@ -366,12 +387,12 @@ for itrial = 1:cfg.ntrials
         if escaped, break; end
 
     elseif cfg.STOP_BETWEEN_TRIALS && itrial < cfg.ntrials
-        %---- Per-trial manual advance ----
+        % ---- Per-trial manual advance ----
         fprintf('Trial %d/%d complete. Press SPACE for next trial...\n', itrial, cfg.ntrials);
         while true
             [space,esc] = KeyPoll();
             if esc
-                escaped = true;
+                escaped   = true;
                 flipState = ~flipState;
                 log_event(eventFH,doDigOut,T.now(),[],[],'control',[],TRIG_ESC,'Key_Esc_Between_Trials',flipState);
                 break;
@@ -384,13 +405,14 @@ for itrial = 1:cfg.ntrials
 
 end   % for itrial
 
-%% ---- Cleanup -------------------------------------------------------
+%% ---- Cleanup --------------------------------------------------------
 fprintf('Task complete.\n');
 fclose(eventFH);
 if ishandle(hfig), close(hfig); end
 
 
-%% =================== Local functions ================================
+%% =================== Local functions =================================
+
     function [space, esc] = KeyPoll()
         space = System.Windows.Input.Keyboard.IsKeyDown(System.Windows.Input.Key.Space);
         esc   = System.Windows.Input.Keyboard.IsKeyDown(System.Windows.Input.Key.Escape);

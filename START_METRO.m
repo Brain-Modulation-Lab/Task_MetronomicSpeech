@@ -26,14 +26,15 @@ cfg.max_trials            = inf;           % cap on total trials (inf = run them
 cfg.randomize_order       = true;          % shuffle sentence order within each block
 cfg.trials_per_mini_block = 5;       % there will be at least this many trials of a condition in a row
 cfg.pause_every_n_trials = 30;       % pause for a break at this interval (regardless of block length)
+cfg.first_trial_is_metro = 1; 
 
 %% ---------------- Metronomic task parameters (ported from metronomic_task_demo) ----------------
-cfg.metro_dur      = 1.5;          % s the auditory metronome plays (pre-go epoch 1)
-cfg.metro_rate             = 3;         % rate in Hz of audio metronome
+cfg.metro_dur      = 2.5;          % s the auditory metronome plays (pre-go epoch 1)
+cfg.metro_rate             = 2;         % rate in Hz of audio metronome
 cfg.go_latency        = [0.75 1.24];  % jittered silent period (s) after metronome, before GO beep (epoch 2)
 cfg.speech_window_dur       = 5;            % s between GO beep onset and visual stimulus disappearing
 cfg.stim_font_size          = 34;           % stimulus font size
-cfg.stim_max_char_per_line  = 26;       % wrap width for the sentence (chars per line)
+cfg.stim_max_char_per_line  = 26;       % wrap width for       the sentence (chars per line)
 
 %% ---------------- Sounds ----------------
 cfg.go_beep_freq        = 1000;   % GO beep tone (Hz)
