@@ -20,7 +20,8 @@ switch compname
         paths.task       = [paths.code, filesep, 'Task_MetronomicSpeech']; 
 
         % paths.data = 'Y:\DBS'; % mapped drive
-        paths.data = 'C:\metro'; % local drive for development
+        % paths.data = 'C:\metro'; % local drive for development
+          paths.data =   'D:\metro_backup_only'; % portable drive for development
 
         % external toolboxes
         paths.spm = [paths.code, filesep, 'spm12']; %%%% 
