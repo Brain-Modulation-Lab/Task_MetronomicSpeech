@@ -1,4 +1,4 @@
-function START_METRO_MGH
+function START_METRO
 % START_METRO - Launcher for the metronomic paced-speech task.
 %
 % build the cfg struct -> prepare paths,
@@ -12,7 +12,7 @@ cfg = struct();
 
 %% ---------------- Subject / session ----------------
 % cfg.SUBJECT       = 'DM1060';     % Subject identifier
-cfg.SUBJECT     = 'metro-pilot002';  % <- use this for a test run
+cfg.SUBJECT     = 'metro-pilot001';  % <- use this for a test run
 
 % cfg.SESSION = 'preop';    % 'preop' or 'intraop' (drives folder naming + n_blocks)
 cfg.SESSION = 'intraop';    % 'preop' or 'intraop' (drives folder naming + n_blocks)
@@ -29,7 +29,7 @@ cfg.first_trial_is_metro = 1;
 
 %% ---------------- Metronomic task parameters (ported from metronomic_task_demo) ----------------
 cfg.metro_dur      = 2.5;          % s the auditory metronome plays (pre-go epoch 1)
-cfg.metro_rate             = 2;         % rate in Hz of audio metronome
+cfg.metro_rate             = 3.9;         % rate in Hz of audio metronome
 cfg.go_latency        = [0.75 1.24];  % jittered silent period (s) after metronome, before GO beep (epoch 2)
 cfg.speech_window_dur       = 9;            % s between GO beep onset and visual stimulus disappearing
 cfg.stim_font_size          = 80;           % stimulus font size
@@ -55,7 +55,7 @@ switch cfg.SESSION
         cfg.n_blocks = 2;
         cfg.stim_file = 'daf_sentences_preop_single.tsv'; 
     case 'intraop'
-        cfg.n_blocks = 2;
+        cfg.n_blocks = 3;
         cfg.stim_file = 'daf_sentences_intraop_single.tsv'; 
     otherwise
         error('Unknown session label: %s', cfg.SESSION);

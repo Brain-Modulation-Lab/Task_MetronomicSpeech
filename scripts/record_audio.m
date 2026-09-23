@@ -3,15 +3,19 @@ function out = record_audio(filename, qConstant)
 q = qConstant.Value;
 out = 'test'; % Placeholder for recorded audio data
 
-device = 'Focusrite USB ASIO';
-driver = 'ASIO';
+cfg = setup_audio_devices(); 
+
+device = cfg.aud_dev_in; 
+driver = 'ASIO'; 
+numchannels = cfg.n_chans_in; 
+
 Fs = 44100; % sampling frequency
 % set up device reader (for recording)
 deviceReader = audioDeviceReader('SampleRate',Fs, ...
     'Device',device, ...
     'BitDepth','24-bit integer', ...
     'Driver',driver, ...
-    'NumChannels', 6);
+    'NumChannels', numchannels);
 
 setup(deviceReader);
 

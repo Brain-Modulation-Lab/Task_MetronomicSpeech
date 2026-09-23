@@ -3,7 +3,9 @@
 
 function cfg = setup_audio_devices(cfg)
 
-aud = struct; 
+if ~exist('cfg','var')
+    cfg = struct; 
+end
 
 computername = char(java.net.InetAddress.getLocalHost.getHostName); % might not work on non-windows machines
 auddevs = audiodevinfo; 
@@ -14,6 +16,7 @@ switch computername
     case 'BML-ALIENWARE2'
          cfg.aud_dev_out = 'Playback 3 + 4 (5- Focusrite USB Audio)'; 
          cfg.aud_player_fs     = 44100;      % Audio sample rate in Hz
+         cfg.n_chans_in = 6; 
     case {'677-GUE-WL-0010','677-GUE-WL-0012'}  % AM Thinkpad X1 laptops
         if any(contains(devs_out,'Focusrite'))
             cfg.aud_dev_out = 'Speakers (Focusrite USB Audio)'; 
@@ -30,7 +33,9 @@ switch computername
     
     case '677-GUE-WD-0013' % Guenther lab soundbooth computer
          cfg.aud_dev_out = 'Speakers (4- Focusrite Usb Audio)';
+         cfg.aud_dev_in = 'Focusrite USB ASIO'; 
          cfg.aud_player_fs     = 44100;      % Audio sample rate in Hz
+         cfg.n_chans_in = 1; 
 
     case 'AMSMEIER' % AM strix laptop
         if any(contains(devs_out,'Speakers (Realtek(R) Audio) (Windows DirectSound)')) 
