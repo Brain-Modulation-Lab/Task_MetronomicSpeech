@@ -12,25 +12,24 @@ cfg = struct();
 
 %% ---------------- Subject / session ----------------
 % cfg.SUBJECT       = 'DM1060';     % Subject identifier
-cfg.SUBJECT     = 'metrotest';  % <- use this for a test run
+cfg.SUBJECT     = 'metro-pilot002';  % <- use this for a test run
 
 % cfg.SESSION = 'preop';    % 'preop' or 'intraop' (drives folder naming + n_blocks)
 cfg.SESSION = 'intraop';    % 'preop' or 'intraop' (drives folder naming + n_blocks)
 
 
 %% ---------------- Run / session options ----------------
-cfg.RECORD_AUDIO          =  1; 
 cfg.STOP_BETWEEN_TRIALS        = 0;          % require SPACE to start each trial
 cfg.iti                   = [0.75 1.25];   % jittered inter-trial interval (s)   [was iti_range in the demo]
 cfg.max_trials            = inf;           % cap on total trials (inf = run them all)
 cfg.randomize_order       = true;          % shuffle sentence order within each block
 cfg.trials_per_mini_block = 5;       % there will be at least this many trials of a condition in a row
-cfg.pause_every_n_trials = 30;       % pause for a break at this interval (regardless of block length)
+cfg.pause_every_n_trials = 50;       % pause for a break at this interval (regardless of block length)
 cfg.first_trial_is_metro = 1; 
 
 %% ---------------- Metronomic task parameters (ported from metronomic_task_demo) ----------------
 cfg.metro_dur      = 2.5;          % s the auditory metronome plays (pre-go epoch 1)
-cfg.metro_rate             = 3.5;         % rate in Hz of audio metronome
+cfg.metro_rate             = 2;         % rate in Hz of audio metronome
 cfg.go_latency        = [0.75 1.24];  % jittered silent period (s) after metronome, before GO beep (epoch 2)
 cfg.speech_window_dur       = 9;            % s between GO beep onset and visual stimulus disappearing
 cfg.stim_font_size          = 80;           % stimulus font size
@@ -87,11 +86,15 @@ switch computer_name
         cfg.PATH_SOURCEDATA = 'C:\sourcedata';
         cfg.RECORD_AUDIO    = 1;
 
-
+    case '677-GUE-WD-0013' % Guenther lab soundbooth computer
+        cfg.PATH_TASK       = 'C:\Task_MetronomicSpeech';
+        cfg.PATH_SOURCEDATA = 'C:\Task_MetronomicSpeech_sourcedata';
+        cfg.RECORD_AUDIO    = 0;   %
+        
     case 'crc-dot1x-nat-10-239-35-5.bu.edu'   % Kien Dang's mac (made early script version)
         cfg.PATH_TASK       = '/Users/kiendang/Documents/GitHub/Task_MetronomicSpeech';
         cfg.PATH_SOURCEDATA = '/Users/kiendang/Documents/Guenther_Lab_Data';
-        cfg.RECORD_AUDIO    = 0;   % no lab recording setup on this machine
+        cfg.RECORD_AUDIO    = 0;   %
 
     otherwise
         warning('Unrecognized host "%s" - using fallback paths.', computer_name);

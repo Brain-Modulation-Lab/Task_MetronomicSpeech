@@ -5,8 +5,7 @@ function cfg = setup_audio_devices(cfg)
 
 aud = struct; 
 
-computername = getenv('COMPUTERNAME'); % might not work on non-windows machines
-    computername = deblank(computername); 
+computername = char(java.net.InetAddress.getLocalHost.getHostName); % might not work on non-windows machines
 auddevs = audiodevinfo; 
     devs_in = {auddevs.input.Name};
     devs_out = {auddevs.output.Name};
@@ -28,6 +27,11 @@ switch computername
                 % cfg.aud_dev_out = 'ARZOPA'; % portable screen speakers
         end
         cfg.aud_player_fs     = 44100;      % Audio sample rate in Hz
+    
+    case '677-GUE-WD-0013' % Guenther lab soundbooth computer
+         cfg.aud_dev_out = 'Speakers (4- Focusrite Usb Audio)';
+         cfg.aud_player_fs     = 44100;      % Audio sample rate in Hz
+
     case 'AMSMEIER' % AM strix laptop
         if any(contains(devs_out,'Speakers (Realtek(R) Audio) (Windows DirectSound)')) 
             cfg.aud_dev_out = 'Speakers (Realtek(R) Audio)'; 
