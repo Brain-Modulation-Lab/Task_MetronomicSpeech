@@ -5,9 +5,13 @@
 
 %% create runs table
 
-sub = {'metro-pilot001';'metro-pilot001'};
-run = [8                ;  9]; 
-metro_hz = [2           ; 3.5]; 
+% % % sub = {'metro-pilot001';'metro-pilot001'};
+% % % run = [8                ;  9]; 
+% % % metro_hz = [2           ; 3.5]; 
+
+sub = {'metro-pilot001'};
+run = [8                ]; 
+metro_hz = [2           ]; 
 
 op.task = 'metro';
 op.ses = 'intraop'; 
@@ -33,6 +37,7 @@ runs_out = find_syllable_rate(runs, op)
 
 %% compare metro vs nonmetro trials
 % runrow = [1 2];  
+
 runrows = 1:height(runs); 
 
 % compvar = 'isi_coef_var'; ylab = {'Inter-syllable coefficient of variation','(higher = more variable)'}; 
