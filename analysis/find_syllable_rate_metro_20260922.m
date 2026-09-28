@@ -5,13 +5,13 @@
 
 %% create runs table
 
-% % % sub = {'metro-pilot001';'metro-pilot001'};
-% % % run = [8                ;  9]; 
-% % % metro_hz = [2           ; 3.5]; 
+sub = {'metro-pilot001';'metro-pilot001';'metro-pilot001'};
+run = [8                ;  9;               10]; 
+metro_hz = [2           ; 3.5;              ]; 
 
-sub = {'metro-pilot001'};
-run = [8                ]; 
-metro_hz = [2           ]; 
+% sub = {'metro-pilot001'};
+% run = [8                ]; 
+% metro_hz = [2           ]; 
 
 op.task = 'metro';
 op.ses = 'intraop'; 
