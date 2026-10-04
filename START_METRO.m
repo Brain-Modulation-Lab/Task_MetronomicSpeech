@@ -28,9 +28,9 @@ cfg.pause_every_n_trials = 50;       % pause for a break at this interval (regar
 cfg.first_trial_is_metro = 1; 
 
 %% ---------------- Metronomic task parameters (ported from metronomic_task_demo) ----------------
-cfg.metro_dur      = 2.5;          % s the auditory metronome plays (pre-go epoch 1)
+cfg.metro_dur      = 2;          % s the auditory metronome plays (pre-go epoch 1)
 cfg.metro_rate             = 3.9;         % rate in Hz of audio metronome
-cfg.go_latency        = [0.75 1.24];  % jittered silent period (s) after metronome, before GO beep (epoch 2)
+cfg.go_latency        = [0.75 1.25];  % jittered silent period (s) after metronome, before GO beep (epoch 2)
 cfg.speech_window_dur       = 9;            % s between GO beep onset and visual stimulus disappearing
 cfg.stim_font_size          = 80;           % stimulus font size
 cfg.stim_max_char_per_line  = 26;       % wrap width for       the sentence (chars per line)

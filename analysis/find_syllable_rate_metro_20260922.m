@@ -7,7 +7,7 @@
 
 sub = {'metro-pilot001';'metro-pilot001';'metro-pilot001'};
 run = [8                ;  9;               10]; 
-metro_hz = [2           ; 3.5;              ]; 
+metro_hz = [2           ; 3.5;              3.6]; 
 
 % sub = {'metro-pilot001'};
 % run = [8                ]; 
@@ -36,23 +36,26 @@ pyenv('Version', 'python', 'ExecutionMode', 'OutOfProcess');
 runs_out = find_syllable_rate(runs, op)
 
 %% compare metro vs nonmetro trials
-% runrow = [1 2];  
+% runrow = [1 2 3];  
 
 runrows = 1:height(runs); 
 
+x_tick_angle =  25; 
+
+% compvar = 'mean_isi'; ylab = {'Inter-syllable mean (sec)'}; 
 % compvar = 'isi_coef_var'; ylab = {'Inter-syllable coefficient of variation','(higher = more variable)'}; 
 % compvar = 'isi_coef_var_rob'; ylab = {'Inter-syllable coefficient of variation (robust)','(higher = more variable)'}; 
-% compvar = 'npvi'; ylab = {'Normalized Pairwise Variability Index','(higher = less periodic)'}; 
+compvar = 'npvi'; ylab = {'Normalized Pairwise Variability Index','(higher = less periodic)'}; 
 % compvar = 'std'; ylab = {'Inter-syllable standard deviation','(higher = more variable)'}; %%%% nb: bad metric because it doesn't account for syl rate
-compvar = 'mean_isi'; ylab = {'Inter-syllable mean (sec)'}
+
 
 % close all
-hfig = figure; box off
+hfig = figure; 
 set(gcf, 'defaultTextInterpreter', 'none');
 
 for irow = 1:length(runrows)
     thisrow = runrows(irow); 
-    subplot(1,2,irow)
+    subplot(1,nruns,irow)
     hold on
 
     tbl = runs_out.trials{thisrow};
@@ -63,8 +66,21 @@ for irow = 1:length(runrows)
     % Draw the boxplot manually into the current axes
     boxplot(tbl{:,compvar}, tbl.metro_speech, 'Labels', ...
         {'Non-metro speech', 'Metro speech'});
+    xtickangle(x_tick_angle)
+    box off
+
+    % turn off dark mode
+    if use_light_colors
+        % set(gcf,'Color','w'); 
+        % set(gca,'Color','w');
+        % set(g
+    end
 
     ylabel(ylab)
     title({[num2str(runs_out.metro_hz(thisrow)), ' Hz metronome rate'],...
         ['p = ',num2str(anova_p,3)]})
+
+    if compvar == string('mean_isi')
+        hyline = yline(1/runs_out.metro_hz(thisrow)); 
+    end
 end

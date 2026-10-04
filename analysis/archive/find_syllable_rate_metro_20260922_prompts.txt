@@ -1,0 +1,76 @@
+write a matlab function intended to chop up an audio file for an experiment intro trials, then look at the audio of recorded speech within each trial, find onsets of each syllable
+…. then compute stats on syllable onsets, including mean and stdev of inter-syllable time
+… use descriptive variable names and extensive, thorough comments and section headers explaining what you are doing and why
+…
+runs_out = find_syllable_rate(runs,op)
+…
+these files are attached for reference:
+-example src_trials
+-example events.xlsx
+-example landmarks file
+-the 3 main experimental scripts used to run the task and get the data in the first place
+…
+op is a struct expected to have the following fields containing strings: 
+-task
+-ses
+-results_filename - path and filename for where to save results
+….
+runs is a table expected to have runs.paths, where paths is a struct listing at least the following fields with strings:
+-landmarks_file - filename of a .tsv table file to load - with the same time indicated in an audio file and a trials data table file (trials_beh)
+-trials_audiofiles - filename a table to save; this will list all of the trialwise audiofiles you are going to create
+-trial_audio - folder containing the folders for run-level trial audio (don’t save trial audio files directly here)
+-trial_audio_run - folder; you will chop up the main audio file src_run_audiofile into smaller audiofiles corresponding to individual trials, and save the smaller files here
+-src_run_audiofile - audio file of the recording of speech during this run - to chop up and put into trials_audiofiles
+-src_trials - filename of table file  (.mat, .tsv, or .xlsx) - specified details (stim, condition) about each trial in the run (1 row per trial)
+-src_events -  filename of table file (.mat, .tsv, or .xlsx) - specifies times of audio and visual stimuli from that run (1 row per event; usually more than 1 row per event)
+-filestr - a portion of a file string shared in common by multiple files associated with this run, including trialwise audio files
+…
+I want paths to the key files defined in the runs table within the struct conttained in runs.paths{IRUN}. is this what the fucntion expects? I don't want to directly define these filepaths at the top level of the runs table (as a table variable) because there are too many such paths
+…..
+you will go through each row of the runs table and process it
+….
+section: create chopped up trialwise audiofiles for the run
+-first check that the expected variables and fields are present; throw specific errors if these are absent or formatted wrong
+-open src_trials for this run as a table variable ‘trials’ …. this should be a table (.mat, .tsv, or .xlsx); check that it has the variables ‘trialnum’,’stim’
+-open the landmark tsv file; this should be a table with fields dir, name, landmark_time - call it variable ‘landmarks’
+-open the file from the row of landmarks where the file name/dir matches paths.src_events for this run (descriptive error if not found)
+…. open as a table variable ‘events’ …. this should be a table file (.mat, .tsv, or .xlsx)
+…. each event occurs at time specified in column ‘onset’
+-look for the rows of events where event_code is Visual_Onset
+…. check that for these events, there is a corresponding trial in the trials table with the same stim; based on this, check that the same trials occur in the trials table and events table
+-in events, Go_Beep_Onset is aways expected to follow Visual_onset within a trial (1 of each per trial); check that this is true
+-for each trial in the trials table, add the Go_Beep_Onset time under a new variable trials.t_aud_go_on
+…. do the same for Visual_Onset times added as trials.t_vis_stim_on
+-find the audio source file src_run_audiofile
+…. check that it matches a row in the landmarks table dir/name columns
+…. the times in this file are mapped to the times that have just been added to the trials table via the specifications in the landmarks table
+……………  such that there will be a shared event that occurs at a certain time after the start of the src audiofile and also at a specific time tracked by events.onset (whose coordinate scheme is now also used by trials table)
+… use this time mapping and the duration of the audiofile to check that it’s possible for all trials to have occurred within the audiofile (none occur before or after it)
+-for each trial, create a new audiofile in paths.trial_audio_run folder; the filename should be paths.filestr, followed by ‘_trial-’ then the trial number, then ‘.wav’
+-generate a table which you will then save as paths.trials_audiofiles…. this will be a copy of trials table, but with extra columns:
+…. dir, filename - dir and filename of the trial’s audiofile 
+…. start_audio_relative, stop_audio_relative; start and stop time of this audiofile relative to the source audiofile that was chopped up
+….. start, stop: start and stop times, but translated into the time scheme taken from the events table 
+…
+section: find and count syllables onsets
+-for this section you will need to use an audio to text model that is capable of transcribing speech, and outputting times of syllable onsets as accurately as possible
+….. I have the audio toolbox; before generating the code, let’s talk about the best options for this
+-add variable to the trials table - ‘syls’ - this is a cell for each trial, containing a table; this table has a row for each detected syl, and cols:
+… syl - transcript of the syllable
+… start, stop, start_trialaud_rel, stop_trialaud_rel. similar to above, but in this case ‘audio relative’ is relative to the audio trialfile, not the large whole-run file
+-run the transcriber on the audio for this trial to fill out the above table
+-add and fill in cols to trials table:
+… syl_per_mean - mean time between syl onsets
+… syl_per_stdev - stdev of time between syl onsets in this trial
+-save the trials table for this run into runs.trials{THISRUN} - so the runs table must have a column called ‘trials’ which contains this data
+-for each trial, generate and save a textgrid to be opened by praat
+…. filename: the same dir and name as the trialaudio file, except ending in _syls.textgrid
+…. should have a tier ‘syl’ where you mark the onsets and offsets of each syllable, along with the transcript - same basic structure as the trials.syls tables
+-also make a similar textgrid for the whole run; applying these syllable timings to the large run-level audio
+…. save this in dir paths.trial_audio…. same name as src_run_audiofile, but ending in _syls.textgrid
+…. the idea of these textgrids is that i should be able to open the textgrids in praat alongside the audio to check the quality of the transcription and timing
+-save runs table, with the new trial tables containing syllable onset analysis into it, into op.results_filename
+… also output new runs table as runs_out
+…..
+write help text comments at hte top so that you include a description of all files expected to be present in the runs.paths struct and an explanation of what they are and how they are used
+-inculde some lines of comments to add at the top of hte function listing all extra software/package requirements for someone who has just installed base matlab and nothing else

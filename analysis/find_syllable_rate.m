@@ -3,6 +3,25 @@ function runs_out = find_syllable_rate(runs, op)
 %                     English phonotactic syllabification (Approach C), refine 
 %                     consonant/vowel onsets, and launch run TextGrids in Praat.
 
+% After getting whisperX timestamps and syllabifying, we refine syllable onset timese with these rules:
+% % % Plosives & Stops (P, B, T, D, K, G, CH, JH):Pass-through: 
+% % % Acoustic snapping is bypassed because burst/transient onsets are already accurately captured by WhisperX.
+% % % 
+% % % Fricatives (HH, F, V, TH, DH, S, Z, SH, ZH):
+% % % High-Frequency Energy Thresholding: Audio is high-pass filtered by subtracting a 600 Hz moving mean to isolate friction noise, 
+% % % followed by 6 ms Gaussian smoothing of the Hilbert envelope.
+% % % Backward Search: Computes a local threshold $T_{hp} = N_{hp} + 0.12 \times (S_{hp} - N_{hp})$ above the local noise floor ($N_{hp}$, 10th percentile). 
+% % % Searches backward from coarse onset up to $350\text{ ms}$ prior to find where energy rises above $T_{hp}$.
+% % % 
+% % % Vowels & Sonorants (All other phones):Broadband Envelope Thresholding: 
+% % % Computes the broadband Hilbert envelope smoothed with a 5 ms Gaussian filter.
+% % % SNR Check: Snapping is skipped if the local peak-to-global-noise floor ratio ($S / N_{\text{global}}$) is less than $1.3$.
+% % % Bidirectional Search: Threshold is set to $T = N_{\text{global}} + 0.15 \times (S - N_{\text{global}})$, 
+% % % where $N_{\text{global}}$ is the 10th percentile of the full trial audio. 
+% % % If energy at coarse onset is above $T$, it walks backward to locate the start of energy onset; if below $T$, 
+% % %     it walks forward to find the energy threshold crossing.
+
+
     %% ── Options ─────────────────────────────────────────────────────────────
     if nargin < 2, op = struct(); end
     if ~isfield(op,'model'),           op.model           = 'base';   end
