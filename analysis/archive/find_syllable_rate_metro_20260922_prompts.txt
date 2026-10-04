@@ -74,3 +74,15 @@ section: find and count syllables onsets
 …..
 write help text comments at hte top so that you include a description of all files expected to be present in the runs.paths struct and an explanation of what they are and how they are used
 -inculde some lines of comments to add at the top of hte function listing all extra software/package requirements for someone who has just installed base matlab and nothing else
+
+
+
+
+
+more prompting on ASR:
+with this audio file of a speaker, i want to try out methods for automatic speech segmentation. 
+in particular i am interested in both getting an accurate transcript and getting, as precisely as possible, the time (relative to audio file start) of the onset of each speech segment. 
+ideally this would be onset times of each phoneme, like a highly trained phonetician would mark them. 
+I have tried this in the past with a combination of wav2vec creating a transcript, and montreal forced aligner using the wav2vec as a dictionary for finding the phoneme onset times; 
+....this led to reasonable transcripts from wav2vec, but inaccuracies with onset timing (esp putting plosive up to hundreds of ms too early); so I'm hoping for a method for assigning times to phonemes that is more accurate. 
+this is also a parkinsonian speaker with disfluencies and somewhat reduced intelligibility; however the much larger concern is getting basic phoneme onset times correct (which prior methods failed at even in normal healthy speakers)
