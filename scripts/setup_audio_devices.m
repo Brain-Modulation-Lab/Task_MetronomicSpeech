@@ -7,6 +7,8 @@ if ~exist('cfg','var')
     cfg = struct; 
 end
 
+cfg.aud_player_fs     = 44100;      % Audio sample rate in Hz
+
 computername = char(java.net.InetAddress.getLocalHost.getHostName); % might not work on non-windows machines
 auddevs = audiodevinfo; 
     devs_in = {auddevs.input.Name};
@@ -14,13 +16,26 @@ auddevs = audiodevinfo;
 
 switch computername
     case 'BML-ALIENWARE2'
-        cfg.aud_dev_in = 'Focusrite USB Audio'; %%%%% for online speech rate assessment; need to find actual name
-         cfg.aud_dev_out = 'Playback 3 + 4 (5- Focusrite USB Audio)'; 
-         cfg.aud_player_fs     = 44100;      % Audio sample rate in Hz
-         cfg.n_chans_in = 6; 
+        
+%         cfg.aud_dev_in = 'qqqqq';
+         if any(contains(devs_out,'Focusrite')) % focusrite setup - full intraop rig
+            cfg.aud_dev_out = 'Playback 3 + 4 (5- Focusrite USB Audio)'; 
+            cfg.aud_dev_in = 'Focusrite USB ASIO'; 
+            cfg.driver = 'ASIO'; 
+            cfg.n_chans_in = 6; 
+         else
+            cfg.aud_dev_out = 'Speakers (Realtek(R) Audio)'; % laptop speakers only - for preop
+            cfg.aud_dev_in = 'Microphone (USB PnP Sound Device)'; %%%%% for online speech rate assessment
+            cfg.driver = 'DirectSound'; 
+            cfg.n_chans_in = 1; 
+         end
+         
+
     case {'677-GUE-WL-0010','677-GUE-WL-0012'}  % AM Thinkpad X1 laptops
         if any(contains(devs_out,'Focusrite'))
             cfg.aud_dev_out = 'Speakers (Focusrite USB Audio)'; 
+            cfg.driver = 'ASIO'; 
+            cfg.n_chans_in = 6; 
         elseif any(contains(devs_out,'Headphones (WF-C500)') ) % if using bluetooth headphones
             cfg.aud_dev_out = 'Headphones (WF-C500)'; 
                 % cfg.aud_dev_out = 'Headset (WF-C500)'; 
@@ -30,19 +45,19 @@ switch computername
             cfg.aud_dev_out = 'Speakers (Realtek(R) Audio)'; 
                 % cfg.aud_dev_out = 'ARZOPA'; % portable screen speakers
         end
-        cfg.aud_player_fs     = 44100;      % Audio sample rate in Hz
     
     case '677-GUE-WD-0013' % Guenther lab soundbooth computer
          cfg.aud_dev_out = 'Speakers (4- Focusrite Usb Audio)';
          cfg.aud_dev_in = 'Focusrite USB ASIO'; 
-         cfg.aud_player_fs     = 44100;      % Audio sample rate in Hz
+            cfg.driver = 'ASIO'; 
          cfg.n_chans_in = 1; 
 
     case 'AMSMEIER' % AM strix laptop
         if any(contains(devs_out,'Speakers (Realtek(R) Audio) (Windows DirectSound)')) 
             cfg.aud_dev_out = 'Speakers (Realtek(R) Audio)'; 
+            cfg.driver = 'DirectSound'; 
+            cfg.n_chans_in = 1; 
         end
-        cfg.aud_player_fs     = 44100;      % Audio sample rate in Hz
     
     otherwise 
         error('unknown computer')
