@@ -14,6 +14,7 @@ auddevs = audiodevinfo;
 
 switch computername
     case 'BML-ALIENWARE2'
+        cfg.aud_dev_in = 'Focusrite USB Audio'; %%%%% for online speech rate assessment; need to find actual name
          cfg.aud_dev_out = 'Playback 3 + 4 (5- Focusrite USB Audio)'; 
          cfg.aud_player_fs     = 44100;      % Audio sample rate in Hz
          cfg.n_chans_in = 6; 

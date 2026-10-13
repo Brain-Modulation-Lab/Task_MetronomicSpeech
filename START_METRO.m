@@ -11,27 +11,28 @@ function START_METRO
 cfg = struct();
 
 %% ---------------- Subject / session ----------------
-% cfg.SUBJECT       = 'DM1060';     % Subject identifier
-cfg.SUBJECT     = 'metro-pilot001';  % <- use this for a test run
+cfg.SUBJECT     = 'qqq';  % <- use this for a test run
+% cfg.SUBJECT     = 'metro-pilot001';  % <- use this for a test run
 
-% cfg.SESSION = 'preop';    % 'preop' or 'intraop' (drives folder naming + n_blocks)
-cfg.SESSION = 'intraop';    % 'preop' or 'intraop' (drives folder naming + n_blocks)
+cfg.SESSION = 'assess';    % 
+% cfg.SESSION = 'preop';    % 
+cfg.SESSION = 'intraop';    % 
 
 
 %% ---------------- Run / session options ----------------
 cfg.STOP_BETWEEN_TRIALS        = 0;          % require SPACE to start each trial
-cfg.iti                   = [0.75 1.25];   % jittered inter-trial interval (s)   [was iti_range in the demo]
+cfg.iti                   = [0.5 1];   % jittered inter-trial interval (s)   [was iti_range in the demo]
 cfg.max_trials            = inf;           % cap on total trials (inf = run them all)
 cfg.randomize_order       = true;          % shuffle sentence order within each block
 cfg.trials_per_mini_block = 5;       % there will be at least this many trials of a condition in a row
-cfg.pause_every_n_trials = 50;       % pause for a break at this interval (regardless of block length)
+cfg.pause_every_n_trials = 30;       % pause for a break at this interval (regardless of block length)
 cfg.first_trial_is_metro = 1; 
 
 %% ---------------- Metronomic task parameters (ported from metronomic_task_demo) ----------------
 cfg.metro_dur      = 2;          % s the auditory metronome plays (pre-go epoch 1)
-cfg.metro_rate             = 3.9;         % rate in Hz of audio metronome
-cfg.go_latency        = [0.75 1.25];  % jittered silent period (s) after metronome, before GO beep (epoch 2)
-cfg.speech_window_dur       = 9;            % s between GO beep onset and visual stimulus disappearing
+cfg.metro_rate             = 3;         % rate in Hz of audio metronome
+cfg.go_latency        = [0.5 1];  % jittered silent period (s) after metronome, before GO beep (epoch 2)
+cfg.speech_window_dur       = 6.5;            % s between GO beep onset and visual stimulus disappearing
 cfg.stim_font_size          = 80;           % stimulus font size
 cfg.stim_max_char_per_line  = 26;       % wrap width for       the sentence (chars per line)
 
@@ -51,12 +52,20 @@ cfg.TASK_FUNCTION = 'task_metro.m';   % main task file; must live in <PATH_TASK>
 
 %% ---------------- Session-specific settings ----------------
 switch cfg.SESSION
+    case 'assess' 
+        cfg.n_blocks = 1;
+        cfg.stim_file = 'stim_test.tsv'; 
+        cfg.assess_syllable_rate = 1; 
+            cfg.speech_rms_thresh_amp = 0.03; 
+            cfg.speech_rms_thresh_dur = 0.01; 
     case 'preop'
         cfg.n_blocks = 2;
         cfg.stim_file = 'daf_sentences_preop_single.tsv'; 
+        cfg.assess_syllable_rate = 0; 
     case 'intraop'
         cfg.n_blocks = 3;
         cfg.stim_file = 'daf_sentences_intraop_single.tsv'; 
+        cfg.assess_syllable_rate = 0; 
     otherwise
         error('Unknown session label: %s', cfg.SESSION);
 end
