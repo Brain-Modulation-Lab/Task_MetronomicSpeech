@@ -2,7 +2,7 @@ function task_metro(cfg)
 % task_metro  Run the metronomic-speech task (non-PsychToolbox).
 %
 % Trial structure
-%  1. ITI — fixation cross, jittered duration (cfg.iti)
+%  1. ITI � fixation cross, jittered duration (cfg.iti)
 %  2. Stimulus epoch  (cfg.metro_dur s, begins at visual onset)
 %       metro_speech trial : audio metronome at cfg.metro_rate Hz
 %       speech-only trial  : identical timing, silence, no metro log events
@@ -143,10 +143,10 @@ if cfg.assess_syllable_rate
         'Position', [0.05, 0.18, 0.20, 0.05], 'FontSize', 11, ...
         'HorizontalAlignment', 'right', 'BackgroundColor', get(hGui, 'Color'), ...
         'String', sprintf('RMS Amp: %.3f', cfg.speech_rms_thresh_amp));
-    btnAmpDown = uicontrol('Parent', hGui, 'Style', 'pushbutton', 'String', '▼', ...
+    btnAmpDown = uicontrol('Parent', hGui, 'Style', 'pushbutton', 'String', '?', ...
         'Units', 'normalized', 'Position', [0.26, 0.18, 0.05, 0.05], 'FontSize', 11, ...
         'Callback', @(~,~) adjust_amp(-0.005));
-    btnAmpUp   = uicontrol('Parent', hGui, 'Style', 'pushbutton', 'String', '▲', ...
+    btnAmpUp   = uicontrol('Parent', hGui, 'Style', 'pushbutton', 'String', '?', ...
         'Units', 'normalized', 'Position', [0.32, 0.18, 0.05, 0.05], 'FontSize', 11, ...
         'Callback', @(~,~) adjust_amp(+0.005));
 
@@ -155,10 +155,10 @@ if cfg.assess_syllable_rate
         'Position', [0.45, 0.18, 0.20, 0.05], 'FontSize', 11, ...
         'HorizontalAlignment', 'right', 'BackgroundColor', get(hGui, 'Color'), ...
         'String', sprintf('RMS Dur: %.3f s', cfg.speech_rms_thresh_dur));
-    btnDurDown = uicontrol('Parent', hGui, 'Style', 'pushbutton', 'String', '▼', ...
+    btnDurDown = uicontrol('Parent', hGui, 'Style', 'pushbutton', 'String', '?', ...
         'Units', 'normalized', 'Position', [0.66, 0.18, 0.05, 0.05], 'FontSize', 11, ...
         'Callback', @(~,~) adjust_dur(-0.002));
-    btnDurUp   = uicontrol('Parent', hGui, 'Style', 'pushbutton', 'String', '▲', ...
+    btnDurUp   = uicontrol('Parent', hGui, 'Style', 'pushbutton', 'String', '?', ...
         'Units', 'normalized', 'Position', [0.72, 0.18, 0.05, 0.05], 'FontSize', 11, ...
         'Callback', @(~,~) adjust_dur(+0.002));
 
@@ -305,7 +305,7 @@ for itrial = 1:cfg.ntrials
     end
 
     % ==================================================================
-    % 1.  ITI — fixation cross
+    % 1.  ITI � fixation cross
     % ==================================================================
     set(hText,'String','*','Color',[0.7 0.7 0.7],'FontSize',cfg.stim_font_size);
     set(hSquare,'FaceColor',[0.3 0.3 0.3]); drawnow;
@@ -560,18 +560,13 @@ for itrial = 1:cfg.ntrials
         trials.speech_dur_for_assess(itrial)    = final_offset - final_onset;
     end
 
-    % ---- Append trial row to TSV ----
-    if itrial == 1
-        writetable(trials(itrial,:), cfg.TRIAL_FILENAME, ...
-            'Delimiter','\t','FileType','text','WriteVariableNames',true);
-    else
-        writetable(trials(itrial,:), cfg.TRIAL_FILENAME, ...
-            'Delimiter','\t','FileType','text','WriteMode','append','WriteVariableNames',false);
-    end
+    % ---- Save trial table up to current trial to TSV ----
+    writetable(trials(1:itrial,:), cfg.TRIAL_FILENAME, ...
+        'Delimiter','\t','FileType','text','WriteVariableNames',true);
 
     % ---- Exit cleanly if ESC was pressed during this trial ----
     if escaped
-        fprintf('ESC detected — exiting after trial %d/%d.\n', itrial, cfg.ntrials);
+        fprintf('ESC detected � exiting after trial %d/%d.\n', itrial, cfg.ntrials);
         break;
     end
 
@@ -591,7 +586,7 @@ for itrial = 1:cfg.ntrials
             set(hText,'String',{'Rest break','','Press SPACE to continue.'}, ...
                 'FontSize',40,'Color',cfg.text_color);
             set(hSquare,'FaceColor',[0 0 0]); drawnow;
-            fprintf('=== Break after trial %d/%d — press SPACE to resume ===\n', itrial, cfg.ntrials);
+            fprintf('=== Break after trial %d/%d � press SPACE to resume ===\n', itrial, cfg.ntrials);
 
             while true
                 [space,esc] = KeyPoll();

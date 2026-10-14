@@ -49,7 +49,12 @@ switch computername
     case '677-GUE-WD-0013' % Guenther lab soundbooth computer
          cfg.aud_dev_out = 'Speakers (4- Focusrite Usb Audio)';
          cfg.aud_dev_in = 'Focusrite USB ASIO'; 
-            cfg.driver = 'ASIO'; 
+         cfg.driver = 'ASIO'; 
+         cfg.n_chans_in = 1; 
+
+         cfg.aud_dev_out = 'Speakers (4- Focusrite Usb Audio)';
+         cfg.aud_dev_in = 'Analogue 1 + 2 (4- Focusrite Usb Audio)'; 
+         cfg.driver = 'DirectSound'; 
          cfg.n_chans_in = 1; 
 
     case 'AMSMEIER' % AM strix laptop

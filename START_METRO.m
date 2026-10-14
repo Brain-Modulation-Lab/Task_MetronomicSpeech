@@ -12,15 +12,15 @@ cfg = struct();
 
 %% ---------------- Subject / session ----------------
 cfg.SUBJECT     = 'qqq';  % <- use this for a test run
-% cfg.SUBJECT     = 'metro-pilot001';  % <- use this for a test run
+% cfg.SUBJECT     = 'metro-pilot003';  % <- use this for a test run
 
-% cfg.SESSION = 'assess';    % 
+cfg.SESSION = 'assess';    % 
 % cfg.SESSION = 'preop';    % 
-cfg.SESSION = 'intraop';    % 
+% cfg.SESSION = 'intraop';    % 
 
 
 %% ---------------- Run / session options ----------------
-cfg.STOP_BETWEEN_TRIALS        = 0;          % require SPACE to start each trial - this value is ignored in assessment mode
+cfg.STOP_BETWEEN_TRIALS        = 1;          % require SPACE to start each trial - this value is ignored in assessment mode
 cfg.iti                   = [0.5 1];   % jittered inter-trial interval (s)   [was iti_range in the demo]
 cfg.max_trials            = inf;           % cap on total trials (inf = run them all)
 cfg.randomize_order       = true;          % shuffle sentence order within each block
@@ -28,13 +28,13 @@ cfg.trials_per_mini_block = 5;       % there will be at least this many trials o
 cfg.pause_every_n_trials = 30;       % pause for a break at this interval (regardless of block length)
 cfg.first_trial_is_metro = 1; 
 cfg.intraop_to_preop_to_speed_ratio = 0.9; 
-cfg.alternate_syl_colors_during_nonmetro = 1; % if true, alternate syl colors on all trials; if false, only do so on metro trials
+cfg.alternate_syl_colors_during_nonmetro = 0; % if true, alternate syl colors on all trials; if false, only do so on metro trials
 
 %% ---------------- Metronomic task parameters ----------------
 cfg.metro_dur      = 2;          % s the auditory metronome plays (pre-go epoch 1)
-cfg.metro_rate             = 3;         % rate in Hz of audio metronome
+cfg.metro_rate             = 4.7;         % rate in Hz of audio metronome
 cfg.go_latency        = [0.5 1];  % jittered silent period (s) after metronome, before GO beep (epoch 2)
-cfg.speech_window_dur       = 6.5;            % s between GO beep onset and visual stimulus disappearing
+cfg.speech_window_dur       = 7;            % s between GO beep onset and visual stimulus disappearing
 cfg.stim_font_size          = 80;           % stimulus font size
 cfg.stim_max_char_per_line  = 26;       % wrap width for       the sentence (chars per line)
 
@@ -69,7 +69,7 @@ switch cfg.SESSION
 %         cfg.stim_file = 'daf_sentences_preop_single.tsv'; 
         cfg.assess_syllable_rate = 0; 
     case 'intraop'
-        cfg.n_blocks = 3;
+        cfg.n_blocks = 2;
         cfg.stim_file = 'stim_test.tsv'; 
 %         cfg.stim_file = 'daf_sentences_intraop_single.tsv'; 
         cfg.assess_syllable_rate = 0; 
@@ -105,7 +105,7 @@ switch computer_name
     case '677-GUE-WD-0013' % Guenther lab soundbooth computer
         cfg.PATH_TASK       = 'C:\Task_MetronomicSpeech';
         cfg.PATH_SOURCEDATA = 'C:\Task_MetronomicSpeech_sourcedata';
-        cfg.RECORD_AUDIO    = 0;   %
+        cfg.RECORD_AUDIO    = 1;   %
         
     case 'crc-dot1x-nat-10-239-35-5.bu.edu'   % Kien Dang's mac (made early script version)
         cfg.PATH_TASK       = '/Users/kiendang/Documents/GitHub/Task_MetronomicSpeech';
