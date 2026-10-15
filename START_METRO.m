@@ -14,9 +14,12 @@ cfg = struct();
 cfg.SUBJECT     = 'qqq';  % <- use this for a test run
 % cfg.SUBJECT     = 'metro-pilot003';  % <- use this for a test run
 
-cfg.SESSION = 'assess';    % 
+SUBJECT_METRO_RATE          = 3.5; % % set this rate for the subject after running assess
+
+% cfg.SESSION = 'assess';    % 
+% cfg.SESSION = 'famil';    % 
 % cfg.SESSION = 'preop';    % 
-% cfg.SESSION = 'intraop';    % 
+cfg.SESSION = 'intraop';    % 
 
 
 %% ---------------- Run / session options ----------------
@@ -28,11 +31,10 @@ cfg.trials_per_mini_block = 5;       % there will be at least this many trials o
 cfg.pause_every_n_trials = 30;       % pause for a break at this interval (regardless of block length)
 cfg.first_trial_is_metro = 1; 
 cfg.intraop_to_preop_to_speed_ratio = 0.9; 
-cfg.alternate_syl_colors_during_nonmetro = 0; % if true, alternate syl colors on all trials; if false, only do so on metro trials
+cfg.alternate_syl_colors_during_nonmetro = 1; % if true, alternate syl colors on all trials; if false, only do so on metro trials
 
 %% ---------------- Metronomic task parameters ----------------
 cfg.metro_dur      = 2;          % s the auditory metronome plays (pre-go epoch 1)
-cfg.metro_rate             = 4.7;         % rate in Hz of audio metronome
 cfg.go_latency        = [0.5 1];  % jittered silent period (s) after metronome, before GO beep (epoch 2)
 cfg.speech_window_dur       = 7;            % s between GO beep onset and visual stimulus disappearing
 cfg.stim_font_size          = 80;           % stimulus font size
@@ -57,19 +59,30 @@ cfg.TASK_FUNCTION = 'task_metro.m';   % main task file; must live in <PATH_TASK>
 
 %% ---------------- Session-specific settings ----------------
 switch cfg.SESSION
-    case 'assess' 
+    case 'famil' 
+        cfg.metro_rate = 2;         % rate in Hz of audio metronome
         cfg.n_blocks = 1;
         cfg.stim_file = 'stim_test.tsv'; 
+        cfg.assess_syllable_rate = 0; 
+            cfg.speech_rms_thresh_amp = 0.03; 
+            cfg.speech_rms_thresh_dur = 0.01; 
+    case 'assess' 
+        cfg.metro_rate = nan;         % no metro trials in this phase
+        cfg.n_blocks = 1;
+%         cfg.stim_file = 'stim_test.tsv'; 
+        cfg.stim_file = 'stim_test_2stim.tsv'; cfg.trials_per_mini_block = 2;
         cfg.assess_syllable_rate = 1; 
             cfg.speech_rms_thresh_amp = 0.03; 
             cfg.speech_rms_thresh_dur = 0.01; 
     case 'preop'
-        cfg.n_blocks = 2;
+        cfg.metro_rate = SUBJECT_METRO_RATE;    
+        cfg.n_blocks = 1;
         cfg.stim_file = 'stim_test.tsv'; 
 %         cfg.stim_file = 'daf_sentences_preop_single.tsv'; 
         cfg.assess_syllable_rate = 0; 
     case 'intraop'
-        cfg.n_blocks = 2;
+        cfg.metro_rate = SUBJECT_METRO_RATE;    
+        cfg.n_blocks = 3;
         cfg.stim_file = 'stim_test.tsv'; 
 %         cfg.stim_file = 'daf_sentences_intraop_single.tsv'; 
         cfg.assess_syllable_rate = 0; 

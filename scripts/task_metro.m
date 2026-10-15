@@ -2,7 +2,7 @@ function task_metro(cfg)
 % task_metro  Run the metronomic-speech task (non-PsychToolbox).
 %
 % Trial structure
-%  1. ITI — fixation cross, jittered duration (cfg.iti)
+%  1. ITI â€” fixation cross, jittered duration (cfg.iti)
 %  2. Stimulus epoch  (cfg.metro_dur s, begins at visual onset)
 %       metro_speech trial : audio metronome at cfg.metro_rate Hz
 %       speech-only trial  : identical timing, silence, no metro log events
@@ -13,15 +13,13 @@ function task_metro(cfg)
 %
 % Speech Rate Assessment Mode (cfg.assess_syllable_rate = true)
 %  - Runs non-metronomic trials only.
-%  - Displays docked GUI waveform figure with mic input.
-%  - Displays trial number, stimulus text, and syllable count.
-%  - Includes Up/Down arrow buttons to adjust RMS thresh amp & dur on the fly.
-%  - Parameters carry over from trial to trial within the run.
-%  - Computes RMS speech onset and offset over an extended speech window.
-%  - Allows user to click and drag onset/offset markers.
-%  - Interactive "Accept trial", "Reject trial", and "Quit task (Esc)" GUI buttons.
-%  - Outputs speech duration metrics and syllable rate (Hz) summary.
-%  - Copies speed-ratio-adjusted speech rate to system clipboard.
+%  - Single-trial GUI displays docked speech waveform figure with mic input.
+%  - Keyboard shortcuts: Spacebar = Accept, Backspace = Reject, Esc = Quit.
+%  - At end of single-trial phase, opens a Final Review Tiled GUI (max 3 cols).
+%  - Global RMS Amp/Dur buttons adjust automatic onset/offset for unadjusted trials.
+%  - Radio buttons allow toggling Accept/Reject for each trial.
+%  - Audio playback button with moving cursor during playback.
+%  - Finalize button calculates results and copies adjusted speech rate to clipboard.
 
 %% ---- Default optional fields ----------------------------------------
 if ~isfield(cfg,'play_go_cue'),                    cfg.play_go_cue                    = true;  end
@@ -53,12 +51,16 @@ end
 NET.addAssembly('PresentationCore');
 
 %% ---- Shared GUI state variables -------------------------------------
-speech_wave  = [];
-speechWinDur = cfg.speech_window_dur;
-hLineOn      = [];
-hLineOff     = [];
-hTextOn      = [];
-hTextOff     = [];
+speech_wave          = [];
+speechWinDur         = cfg.speech_window_dur;
+hLineOn              = [];
+hLineOff             = [];
+hTextOn              = [];
+hTextOff             = [];
+user_choice          = '';
+
+recorded_audio_all   = {};
+is_manually_adjusted = [];
 
 %% ---- Timing helpers -------------------------------------------------
 ticH  = tic;
@@ -90,6 +92,9 @@ if cfg.assess_syllable_rate
     trials.speech_on_for_assess     = nan(height(trials), 1);
     trials.speech_off_for_assess    = nan(height(trials), 1);
     trials.speech_dur_for_assess    = nan(height(trials), 1);
+    
+    recorded_audio_all   = cell(height(trials), 1);
+    is_manually_adjusted = false(height(trials), 1);
 end
 
 cfg.ntrials = height(trials);
@@ -110,7 +115,7 @@ cfg.background_color = [0 0 0];
 ss   = get(0,'ScreenSize');
 hfig = figure('Name','Metro Task','Color',cfg.background_color, ...
     'MenuBar','none','ToolBar','none','NumberTitle','off', ...
-    'Position',[0 0 ss(3) ss(4)]);
+    'Position',[0 0 ss(3) ss(4)], 'KeyPressFcn', @keyPressCallback);
 ax    = axes('Parent',hfig,'Position',[0 0 1 1],'Visible','off');
 hText = text(0.5,0.5,'','Parent',ax,'Color',cfg.text_color, ...
     'FontSize',cfg.stim_font_size,'FontWeight','bold', ...
@@ -124,7 +129,7 @@ hSquare = annotation('rectangle','FaceColor',[1 1 1],'EdgeColor','none', ...
 hGui = [];
 if cfg.assess_syllable_rate
     hGui = figure('Name', 'Speech Rate Assessment GUI', 'NumberTitle', 'off', ...
-        'WindowStyle', 'docked');
+        'WindowStyle', 'docked', 'KeyPressFcn', @keyPressCallback);
     
     % Header text: Trial number, stimulus, and syllable count
     txtInfo = uicontrol('Parent', hGui, 'Style', 'text', 'Units', 'normalized', ...
@@ -138,39 +143,44 @@ if cfg.assess_syllable_rate
     title(axGui, 'Trial Speech Waveform');
     grid(axGui, 'on');
 
-    % RMS Threshold Amp controls (Label + Up/Down buttons)
+    % RMS Threshold Amp controls (Label + +/- buttons)
     txtAmp = uicontrol('Parent', hGui, 'Style', 'text', 'Units', 'normalized', ...
-        'Position', [0.05, 0.18, 0.20, 0.05], 'FontSize', 11, ...
+        'Position', [0.02, 0.18, 0.18, 0.05], 'FontSize', 11, ...
         'HorizontalAlignment', 'right', 'BackgroundColor', get(hGui, 'Color'), ...
         'String', sprintf('RMS Amp: %.3f', cfg.speech_rms_thresh_amp));
-    btnAmpDown = uicontrol('Parent', hGui, 'Style', 'pushbutton', 'String', '?', ...
-        'Units', 'normalized', 'Position', [0.26, 0.18, 0.05, 0.05], 'FontSize', 11, ...
+    btnAmpDown = uicontrol('Parent', hGui, 'Style', 'pushbutton', 'String', '-', ...
+        'Units', 'normalized', 'Position', [0.21, 0.18, 0.04, 0.05], 'FontSize', 11, ...
         'Callback', @(~,~) adjust_amp(-0.005));
-    btnAmpUp   = uicontrol('Parent', hGui, 'Style', 'pushbutton', 'String', '?', ...
-        'Units', 'normalized', 'Position', [0.32, 0.18, 0.05, 0.05], 'FontSize', 11, ...
+    btnAmpUp   = uicontrol('Parent', hGui, 'Style', 'pushbutton', 'String', '+', ...
+        'Units', 'normalized', 'Position', [0.26, 0.18, 0.04, 0.05], 'FontSize', 11, ...
         'Callback', @(~,~) adjust_amp(+0.005));
 
-    % RMS Threshold Dur controls (Label + Up/Down buttons)
+    % RMS Threshold Dur controls (Label + +/- buttons)
     txtDur = uicontrol('Parent', hGui, 'Style', 'text', 'Units', 'normalized', ...
-        'Position', [0.45, 0.18, 0.20, 0.05], 'FontSize', 11, ...
+        'Position', [0.38, 0.18, 0.18, 0.05], 'FontSize', 11, ...
         'HorizontalAlignment', 'right', 'BackgroundColor', get(hGui, 'Color'), ...
         'String', sprintf('RMS Dur: %.3f s', cfg.speech_rms_thresh_dur));
-    btnDurDown = uicontrol('Parent', hGui, 'Style', 'pushbutton', 'String', '?', ...
-        'Units', 'normalized', 'Position', [0.66, 0.18, 0.05, 0.05], 'FontSize', 11, ...
+    btnDurDown = uicontrol('Parent', hGui, 'Style', 'pushbutton', 'String', '-', ...
+        'Units', 'normalized', 'Position', [0.57, 0.18, 0.04, 0.05], 'FontSize', 11, ...
         'Callback', @(~,~) adjust_dur(-0.002));
-    btnDurUp   = uicontrol('Parent', hGui, 'Style', 'pushbutton', 'String', '?', ...
-        'Units', 'normalized', 'Position', [0.72, 0.18, 0.05, 0.05], 'FontSize', 11, ...
+    btnDurUp   = uicontrol('Parent', hGui, 'Style', 'pushbutton', 'String', '+', ...
+        'Units', 'normalized', 'Position', [0.62, 0.18, 0.04, 0.05], 'FontSize', 11, ...
         'Callback', @(~,~) adjust_dur(+0.002));
 
-    % Accept / Reject / Quit task buttons
-    btnAccept = uicontrol('Parent', hGui, 'Style', 'pushbutton', 'String', 'Accept trial', ...
-        'Units', 'normalized', 'Position', [0.05, 0.03, 0.25, 0.10], ...
+    % Play audio button
+    btnPlayCurrent = uicontrol('Parent', hGui, 'Style', 'pushbutton', 'String', 'â–¶ Play audio', ...
+        'Units', 'normalized', 'Position', [0.75, 0.18, 0.18, 0.05], 'FontSize', 11, ...
+        'Callback', @(~,~) play_current_trial_audio());
+
+    % Accept / Reject / Quit task buttons (with keyboard shortcut labels)
+    btnAccept = uicontrol('Parent', hGui, 'Style', 'pushbutton', 'String', 'Accept trial (Space)', ...
+        'Units', 'normalized', 'Position', [0.05, 0.03, 0.28, 0.10], ...
         'FontSize', 12, 'FontWeight', 'bold', 'Enable', 'off');
-    btnReject = uicontrol('Parent', hGui, 'Style', 'pushbutton', 'String', 'Reject trial', ...
-        'Units', 'normalized', 'Position', [0.37, 0.03, 0.25, 0.10], ...
+    btnReject = uicontrol('Parent', hGui, 'Style', 'pushbutton', 'String', 'Reject trial (Backspace)', ...
+        'Units', 'normalized', 'Position', [0.36, 0.03, 0.28, 0.10], ...
         'FontSize', 12, 'FontWeight', 'bold', 'Enable', 'on');
     btnQuit   = uicontrol('Parent', hGui, 'Style', 'pushbutton', 'String', 'Quit task (Esc)', ...
-        'Units', 'normalized', 'Position', [0.69, 0.03, 0.25, 0.10], ...
+        'Units', 'normalized', 'Position', [0.67, 0.03, 0.28, 0.10], ...
         'FontSize', 12, 'FontWeight', 'bold', 'Enable', 'on');
 end
 
@@ -305,7 +315,7 @@ for itrial = 1:cfg.ntrials
     end
 
     % ==================================================================
-    % 1.  ITI — fixation cross
+    % 1.  ITI â€” fixation cross
     % ==================================================================
     set(hText,'String','*','Color',[0.7 0.7 0.7],'FontSize',cfg.stim_font_size);
     set(hSquare,'FaceColor',[0.3 0.3 0.3]); drawnow;
@@ -316,7 +326,11 @@ for itrial = 1:cfg.ntrials
     itiDur  = cfg.iti(1) + rand*(cfg.iti(2) - cfg.iti(1));
     tItiEnd = tFixOn + itiDur;
     while T.now() < tItiEnd - CHUNK_SIZE/cfg.aud_player_fs
-        [~,esc] = KeyPoll();
+        [~,esc, backspace] = KeyPoll();
+        if (esc || backspace) && cfg.assess_syllable_rate
+            if esc, user_choice = 'quit'; escaped = true; end
+            if backspace, user_choice = 'reject'; end
+        end
         if esc && ~escaped
             escaped   = true;
             flipState = ~flipState;
@@ -457,7 +471,11 @@ for itrial = 1:cfg.ntrials
             break; % Proceed immediately if user clicks reject/quit during speech
         end
 
-        [~,esc] = KeyPoll();
+        [space, esc, backspace] = KeyPoll();
+        if backspace && cfg.assess_syllable_rate
+            user_choice = 'reject';
+            break;
+        end
         if esc && ~escaped
             escaped   = true;
             flipState = ~flipState;
@@ -495,6 +513,7 @@ for itrial = 1:cfg.ntrials
         else
             speech_wave = zeros(round(speechWinDur * cfg.aud_player_fs), 1);
         end
+        recorded_audio_all{itrial} = speech_wave;
 
         fs = cfg.aud_player_fs;
         t_vec = (0:length(speech_wave)-1)' / fs;
@@ -515,19 +534,25 @@ for itrial = 1:cfg.ntrials
         hold(axGui, 'off');
 
         % Calculate initial RMS detection using current carried-over parameters
-        update_rms_detection();
+        update_rms_detection(itrial);
 
         % Enable click-and-drag line movement
-        set(hLineOn,  'ButtonDownFcn', @(src, ~) startLineDrag(src, axGui));
-        set(hLineOff, 'ButtonDownFcn', @(src, ~) startLineDrag(src, axGui));
+        set(hLineOn,  'ButtonDownFcn', @(src, ~) startLineDrag(src, axGui, itrial));
+        set(hLineOff, 'ButtonDownFcn', @(src, ~) startLineDrag(src, axGui, itrial));
 
         % Enable 'Accept trial' button now that trial ended
         set(btnAccept, 'Enable', 'on');
 
-        % Pause and wait for user interaction (or Esc key)
+        % Pause and wait for user interaction (or Space/Backspace/Esc keys)
         while isempty(user_choice) && ishandle(hGui)
-            [~, esc] = KeyPoll();
-            if esc
+            [space, esc, backspace] = KeyPoll();
+            if space && strcmp(get(btnAccept, 'Enable'), 'on')
+                user_choice = 'accept';
+                break;
+            elseif backspace
+                user_choice = 'reject';
+                break;
+            elseif esc
                 user_choice = 'quit';
                 escaped = true;
                 flipState = ~flipState;
@@ -566,7 +591,7 @@ for itrial = 1:cfg.ntrials
 
     % ---- Exit cleanly if ESC was pressed during this trial ----
     if escaped
-        fprintf('ESC detected — exiting after trial %d/%d.\n', itrial, cfg.ntrials);
+        fprintf('ESC detected â€” exiting after trial %d/%d.\n', itrial, cfg.ntrials);
         break;
     end
 
@@ -586,7 +611,7 @@ for itrial = 1:cfg.ntrials
             set(hText,'String',{'Rest break','','Press SPACE to continue.'}, ...
                 'FontSize',40,'Color',cfg.text_color);
             set(hSquare,'FaceColor',[0 0 0]); drawnow;
-            fprintf('=== Break after trial %d/%d — press SPACE to resume ===\n', itrial, cfg.ntrials);
+            fprintf('=== Break after trial %d/%d â€” press SPACE to resume ===\n', itrial, cfg.ntrials);
 
             while true
                 [space,esc] = KeyPoll();
@@ -625,6 +650,175 @@ for itrial = 1:cfg.ntrials
     end
 
 end   % for itrial
+
+%% =====================================================================
+%%  Final Tiled Review GUI (Multi-trial assessment review)
+%% =====================================================================
+if cfg.assess_syllable_rate
+    if ishandle(hGui), close(hGui); end
+    
+    if ~escaped && height(trials) > 0
+        hFinalGui = figure('Name', 'Final Speech Assessment Review', 'NumberTitle', 'off', ...
+            'Units', 'normalized', 'Position', [0.02, 0.05, 0.96, 0.88]);
+
+        % Top header panel
+        pnlHeader = uipanel('Parent', hFinalGui, 'Units', 'normalized', ...
+            'Position', [0.01, 0.91, 0.98, 0.08], 'BorderType', 'none');
+
+        % Finalize button at top left
+        finalized_clicked = false;
+        uicontrol('Parent', pnlHeader, 'Style', 'pushbutton', 'String', 'Finalize trials', ...
+            'Units', 'normalized', 'Position', [0.01, 0.15, 0.18, 0.70], ...
+            'FontSize', 12, 'FontWeight', 'bold', 'BackgroundColor', [0.2 0.7 0.3], ...
+            'ForegroundColor', [1 1 1], 'Callback', @(~,~) finalize_review());
+
+        % Title
+        uicontrol('Parent', pnlHeader, 'Style', 'text', 'String', 'All Trials Review', ...
+            'Units', 'normalized', 'Position', [0.22, 0.20, 0.25, 0.60], ...
+            'FontSize', 14, 'FontWeight', 'bold', 'HorizontalAlignment', 'left');
+
+        % Global RMS controls at top right
+        txtGlobalAmp = uicontrol('Parent', pnlHeader, 'Style', 'text', 'Units', 'normalized', ...
+            'Position', [0.50, 0.20, 0.14, 0.60], 'FontSize', 10, ...
+            'HorizontalAlignment', 'right', 'String', sprintf('RMS Amp: %.3f', cfg.speech_rms_thresh_amp));
+        uicontrol('Parent', pnlHeader, 'Style', 'pushbutton', 'String', '-', ...
+            'Units', 'normalized', 'Position', [0.65, 0.20, 0.03, 0.60], 'FontSize', 11, ...
+            'Callback', @(~,~) adjust_global_amp(-0.005));
+        uicontrol('Parent', pnlHeader, 'Style', 'pushbutton', 'String', '+', ...
+            'Units', 'normalized', 'Position', [0.68, 0.20, 0.03, 0.60], 'FontSize', 11, ...
+            'Callback', @(~,~) adjust_global_amp(+0.005));
+
+        txtGlobalDur = uicontrol('Parent', pnlHeader, 'Style', 'text', 'Units', 'normalized', ...
+            'Position', [0.73, 0.20, 0.14, 0.60], 'FontSize', 10, ...
+            'HorizontalAlignment', 'right', 'String', sprintf('RMS Dur: %.3f s', cfg.speech_rms_thresh_dur));
+        uicontrol('Parent', pnlHeader, 'Style', 'pushbutton', 'String', '-', ...
+            'Units', 'normalized', 'Position', [0.88, 0.20, 0.03, 0.60], 'FontSize', 11, ...
+            'Callback', @(~,~) adjust_global_dur(-0.002));
+        uicontrol('Parent', pnlHeader, 'Style', 'pushbutton', 'String', '+', ...
+            'Units', 'normalized', 'Position', [0.91, 0.20, 0.03, 0.60], 'FontSize', 11, ...
+            'Callback', @(~,~) adjust_global_dur(+0.002));
+
+        % Create grid tiles (Max 3 columns)
+        nTrialsAll = height(trials);
+        nCols      = min(3, nTrialsAll);
+        nRows      = ceil(nTrialsAll / nCols);
+
+        tileAxes      = cell(nTrialsAll, 1);
+        tileLinesOn   = cell(nTrialsAll, 1);
+        tileLinesOff  = cell(nTrialsAll, 1);
+        tileTextsOn   = cell(nTrialsAll, 1);
+        tileTextsOff  = cell(nTrialsAll, 1);
+        tileRadioGrp  = cell(nTrialsAll, 1);
+
+        top_margin = 0.10;
+        bottom_margin = 0.02;
+        left_margin = 0.01;
+        right_margin = 0.01;
+
+        avail_w = 1.0 - left_margin - right_margin;
+        avail_h = 1.0 - top_margin - bottom_margin;
+        tile_w  = avail_w / nCols;
+        tile_h  = avail_h / nRows;
+
+        for idxTr = 1:nTrialsAll
+            row = floor((idxTr-1) / nCols);
+            col = mod(idxTr-1, nCols);
+
+            x_pos = left_margin + col * tile_w;
+            y_pos = 1.0 - top_margin - (row + 1) * tile_h;
+
+            hPanel = uipanel('Parent', hFinalGui, 'Units', 'normalized', ...
+                'Position', [x_pos+0.005, y_pos+0.005, tile_w-0.01, tile_h-0.01]);
+
+            % Trial header info inside panel
+            if ismember('n_syl', trials.Properties.VariableNames) && ~isnan(trials.n_syl(idxTr))
+                syl_str_t = num2str(trials.n_syl(idxTr));
+            else
+                syl_str_t = num2str(sum(trials.stim{idxTr} == '.'));
+            end
+
+            title_str = sprintf('Tr %d | Syl: %s | %s', idxTr, syl_str_t, trials.stim{idxTr});
+            uicontrol('Parent', hPanel, 'Style', 'text', 'String', title_str, ...
+                'Units', 'normalized', 'Position', [0.02, 0.85, 0.96, 0.14], ...
+                'FontSize', 9, 'FontWeight', 'bold', 'HorizontalAlignment', 'left');
+
+            % Waveform axes inside tile panel
+            axTile = axes('Parent', hPanel, 'Position', [0.10, 0.32, 0.86, 0.52]);
+            tileAxes{idxTr} = axTile;
+
+            sigTr = recorded_audio_all{idxTr};
+            if isempty(sigTr)
+                sigTr = zeros(round(speechWinDur * cfg.aud_player_fs), 1);
+            end
+            fs_aud = cfg.aud_player_fs;
+            t_vec_tr = (0:length(sigTr)-1)' / fs_aud;
+
+            plot(axTile, t_vec_tr, sigTr, 'Color', [0.3 0.3 0.3]); hold(axTile, 'on');
+            grid(axTile, 'on'); set(axTile, 'FontSize', 8);
+
+            % Draw Onset and Offset draggable lines
+            on_val  = trials.speech_on_for_assess(idxTr);
+            off_val = trials.speech_off_for_assess(idxTr);
+            if isnan(on_val),  on_val = 0; end
+            if isnan(off_val), off_val = speechWinDur; end
+
+            yl_t = ylim(axTile);
+            hLOn  = line(axTile, [on_val on_val],   yl_t, 'Color', 'r', 'LineWidth', 1.5);
+            hLOff = line(axTile, [off_val off_val], yl_t, 'Color', 'r', 'LineWidth', 1.5);
+            
+            hTOn  = text(axTile, on_val,  yl_t(2)*0.8, ' On',  'Color', 'r', 'FontSize', 8, 'FontWeight', 'bold');
+            hTOff = text(axTile, off_val, yl_t(2)*0.8, ' Off', 'Color', 'r', 'FontSize', 8, 'FontWeight', 'bold');
+            hold(axTile, 'off');
+
+            tileLinesOn{idxTr}  = hLOn;
+            tileLinesOff{idxTr} = hLOff;
+            tileTextsOn{idxTr}  = hTOn;
+            tileTextsOff{idxTr} = hTOff;
+
+            set(hLOn,  'ButtonDownFcn', @(src, ~) startLineDrag(src, axTile, idxTr));
+            set(hLOff, 'ButtonDownFcn', @(src, ~) startLineDrag(src, axTile, idxTr));
+
+            % Play button for tile
+            uicontrol('Parent', hPanel, 'Style', 'pushbutton', 'String', 'â–¶ Play', ...
+                'Units', 'normalized', 'Position', [0.02, 0.04, 0.22, 0.22], ...
+                'FontSize', 9, 'Callback', @(~,~) play_trial_audio(idxTr, axTile));
+
+            % Mutually exclusive Radio Buttons (Accept / Reject)
+            bgRadio = uibuttongroup('Parent', hPanel, 'Units', 'normalized', ...
+                'Position', [0.28, 0.02, 0.70, 0.26], 'BorderType', 'none');
+            tileRadioGrp{idxTr} = bgRadio;
+
+            rbAcc = uicontrol('Parent', bgRadio, 'Style', 'radiobutton', 'String', 'Accept', ...
+                'Units', 'normalized', 'Position', [0.05, 0.10, 0.45, 0.80], 'FontSize', 9);
+            rbRej = uicontrol('Parent', bgRadio, 'Style', 'radiobutton', 'String', 'Reject', ...
+                'Units', 'normalized', 'Position', [0.52, 0.10, 0.45, 0.80], 'FontSize', 9);
+
+            if trials.include_trial_for_assess(idxTr)
+                set(bgRadio, 'SelectedObject', rbAcc);
+            else
+                set(bgRadio, 'SelectedObject', rbRej);
+            end
+        end
+
+        % Wait loop until user clicks "Finalize trials"
+        while ~finalized_clicked && ishandle(hFinalGui)
+            drawnow;
+            pause(0.05);
+        end
+
+        % Collect final radio button selections across all trials
+        if ishandle(hFinalGui)
+            for idxTr = 1:nTrialsAll
+                if ishandle(tileRadioGrp{idxTr})
+                    selObj = get(tileRadioGrp{idxTr}, 'SelectedObject');
+                    strSel = get(selObj, 'String');
+                    trials.include_trial_for_assess(idxTr) = strcmp(strSel, 'Accept');
+                end
+            end
+            close(hFinalGui);
+        end
+    end
+end
 
 %% ---- Post-Assessment Display & Summary ------------------------------
 if cfg.assess_syllable_rate
@@ -683,37 +877,81 @@ end
 fprintf('Task complete.\n');
 fclose(eventFH);
 if ishandle(hfig), close(hfig); end
-if ishandle(hGui), close(hGui); end
 
 
 %% =================== Nested & Local functions ========================
 
+    function keyPressCallback(~, eventData)
+        if strcmp(eventData.Key, 'space')
+            if ishandle(btnAccept) && strcmp(get(btnAccept, 'Enable'), 'on')
+                user_choice = 'accept';
+            end
+        elseif strcmp(eventData.Key, 'backspace')
+            user_choice = 'reject';
+        elseif strcmp(eventData.Key, 'escape')
+            user_choice = 'quit';
+            escaped = true;
+        end
+    end
+
+    function finalize_review()
+        finalized_clicked = true;
+    end
+
     function adjust_amp(delta)
         cfg.speech_rms_thresh_amp = max(0.001, cfg.speech_rms_thresh_amp + delta);
-        update_rms_detection();
+        if exist('itrial', 'var') && itrial <= cfg.ntrials
+            update_rms_detection(itrial);
+        end
     end
 
     function adjust_dur(delta)
         cfg.speech_rms_thresh_dur = max(0.001, cfg.speech_rms_thresh_dur + delta);
-        update_rms_detection();
+        if exist('itrial', 'var') && itrial <= cfg.ntrials
+            update_rms_detection(itrial);
+        end
     end
 
-    function update_rms_detection()
-        if isempty(speech_wave)
+    function adjust_global_amp(delta)
+        cfg.speech_rms_thresh_amp = max(0.001, cfg.speech_rms_thresh_amp + delta);
+        if ishandle(txtGlobalAmp)
+            set(txtGlobalAmp, 'String', sprintf('RMS Amp: %.3f', cfg.speech_rms_thresh_amp));
+        end
+        recompute_unadjusted_trials();
+    end
+
+    function adjust_global_dur(delta)
+        cfg.speech_rms_thresh_dur = max(0.001, cfg.speech_rms_thresh_dur + delta);
+        if ishandle(txtGlobalDur)
+            set(txtGlobalDur, 'String', sprintf('RMS Dur: %.3f s', cfg.speech_rms_thresh_dur));
+        end
+        recompute_unadjusted_trials();
+    end
+
+    function recompute_unadjusted_trials()
+        for idxT = 1:height(trials)
+            if ~is_manually_adjusted(idxT)
+                update_rms_detection(idxT);
+            end
+        end
+    end
+
+    function update_rms_detection(trIdx)
+        if trIdx > numel(recorded_audio_all) || isempty(recorded_audio_all{trIdx})
             return;
         end
+        sig_tr = recorded_audio_all{trIdx};
         fs = cfg.aud_player_fs;
-        t_vec = (0:length(speech_wave)-1)' / fs;
+        t_vec = (0:length(sig_tr)-1)' / fs;
 
-        % RMS Moving Window calculation
         N_win = max(1, round(cfg.speech_rms_thresh_dur * fs));
-        rms_sig = sqrt(movmean(speech_wave.^2, [0, N_win-1]));
+        rms_sig = sqrt(movmean(sig_tr.^2, [0, N_win-1]));
 
         above_thresh_idx = find(rms_sig >= cfg.speech_rms_thresh_amp);
 
         if ~isempty(above_thresh_idx)
             onset_idx  = above_thresh_idx(1);
-            offset_idx = min(above_thresh_idx(end) + N_win - 1, length(speech_wave));
+            offset_idx = min(above_thresh_idx(end) + N_win - 1, length(sig_tr));
             t_onset    = t_vec(onset_idx);
             t_offset   = t_vec(offset_idx);
         else
@@ -721,36 +959,82 @@ if ishandle(hGui), close(hGui); end
             t_offset = speechWinDur;
         end
 
-        % Update vertical line markers
-        if ishandle(hLineOn) && ishandle(hLineOff)
-            set(hLineOn,  'XData', [t_onset t_onset]);
-            set(hLineOff, 'XData', [t_offset t_offset]);
+        trials.speech_on_for_assess(trIdx)  = t_onset;
+        trials.speech_off_for_assess(trIdx) = t_offset;
+        trials.speech_dur_for_assess(trIdx) = t_offset - t_onset;
+
+        % Update Single-Trial GUI if active
+        if exist('itrial', 'var') && trIdx == itrial
+            if ishandle(hLineOn) && ishandle(hLineOff)
+                set(hLineOn,  'XData', [t_onset t_onset]);
+                set(hLineOff, 'XData', [t_offset t_offset]);
+            end
+            if ishandle(hTextOn) && ishandle(hTextOff)
+                yl = ylim(axGui);
+                set(hTextOn,  'Position', [t_onset,  yl(2)*0.85, 0]);
+                set(hTextOff, 'Position', [t_offset, yl(2)*0.85, 0]);
+            end
+            if ishandle(txtAmp), set(txtAmp, 'String', sprintf('RMS Amp: %.3f', cfg.speech_rms_thresh_amp)); end
+            if ishandle(txtDur), set(txtDur, 'String', sprintf('RMS Dur: %.3f s', cfg.speech_rms_thresh_dur)); end
         end
 
-        % Update text annotations on plot
-        if ishandle(hTextOn) && ishandle(hTextOff)
-            yl = ylim(axGui);
-            set(hTextOn,  'Position', [t_onset,  yl(2)*0.85, 0]);
-            set(hTextOff, 'Position', [t_offset, yl(2)*0.85, 0]);
-        end
-
-        % Update threshold display labels
-        if ishandle(txtAmp)
-            set(txtAmp, 'String', sprintf('RMS Amp: %.3f', cfg.speech_rms_thresh_amp));
-        end
-        if ishandle(txtDur)
-            set(txtDur, 'String', sprintf('RMS Dur: %.3f s', cfg.speech_rms_thresh_dur));
+        % Update Final Tiled GUI lines if active
+        if exist('tileLinesOn', 'var') && trIdx <= numel(tileLinesOn)
+            if ishandle(tileLinesOn{trIdx}) && ishandle(tileLinesOff{trIdx})
+                set(tileLinesOn{trIdx},  'XData', [t_onset t_onset]);
+                set(tileLinesOff{trIdx}, 'XData', [t_offset t_offset]);
+            end
+            if ishandle(tileTextsOn{trIdx}) && ishandle(tileTextsOff{trIdx})
+                yl_tile = ylim(tileAxes{trIdx});
+                set(tileTextsOn{trIdx},  'Position', [t_onset,  yl_tile(2)*0.8, 0]);
+                set(tileTextsOff{trIdx}, 'Position', [t_offset, yl_tile(2)*0.8, 0]);
+            end
         end
         drawnow;
+    end
+
+    function play_current_trial_audio()
+        if exist('itrial', 'var')
+            play_trial_audio(itrial, axGui);
+        end
+    end
+
+    function play_trial_audio(trIdx, axTarget)
+        if trIdx > numel(recorded_audio_all) || isempty(recorded_audio_all{trIdx})
+            return;
+        end
+        sig = recorded_audio_all{trIdx};
+        if all(sig == 0), return; end
+
+        fs_aud = cfg.aud_player_fs;
+        player = audioplayer(sig, fs_aud);
+
+        yl = ylim(axTarget);
+        hold(axTarget, 'on');
+        hCursor = line(axTarget, [0 0], yl, 'Color', [0 0.5 1], 'LineWidth', 1.5, 'LineStyle', '--');
+        hold(axTarget, 'off');
+
+        play(player);
+        while isplaying(player) && ishandle(axTarget)
+            currSample = get(player, 'CurrentSample');
+            if currSample > 0 && ishandle(hCursor)
+                currTime = currSample / fs_aud;
+                set(hCursor, 'XData', [currTime currTime]);
+            end
+            drawnow limitrate;
+            pause(0.01);
+        end
+        if ishandle(hCursor), delete(hCursor); end
     end
 
     function set_choice(choice_str)
         user_choice = choice_str;
     end
 
-    function [space, esc] = KeyPoll()
-        space = System.Windows.Input.Keyboard.IsKeyDown(System.Windows.Input.Key.Space);
-        esc   = System.Windows.Input.Keyboard.IsKeyDown(System.Windows.Input.Key.Escape);
+    function [space, esc, backspace] = KeyPoll()
+        space     = System.Windows.Input.Keyboard.IsKeyDown(System.Windows.Input.Key.Space);
+        esc       = System.Windows.Input.Keyboard.IsKeyDown(System.Windows.Input.Key.Escape);
+        backspace = System.Windows.Input.Keyboard.IsKeyDown(System.Windows.Input.Key.Back);
     end
 
 end   % task_metro
@@ -787,19 +1071,22 @@ function formatted = format_syllables_tex(str_text, colors)
     formatted = strjoin(formatted_parts, '');
 end
 
-function startLineDrag(hLine, ax)
-% Click and drag helper for interactive vertical lines on GUI figure
+function startLineDrag(hLine, ax, trIdx)
+% Click and drag helper for interactive vertical lines on GUI figures
     fig = ancestor(ax, 'figure');
-    set(fig, 'WindowButtonMotionFcn', @(~,~) dragLine(hLine, ax));
+    set(fig, 'WindowButtonMotionFcn', @(~,~) dragLine(hLine, ax, trIdx));
     set(fig, 'WindowButtonUpFcn',     @(~,~) stopLineDrag(fig));
 end
 
-function dragLine(hLine, ax)
+function dragLine(hLine, ax, trIdx)
     cp = get(ax, 'CurrentPoint');
     newX = cp(1, 1);
     xl = xlim(ax);
     newX = max(xl(1), min(xl(2), newX));
     set(hLine, 'XData', [newX, newX]);
+    
+    % Mark this trial as manually adjusted by user
+    evalin('caller', sprintf('is_manually_adjusted(%d) = true;', trIdx));
 end
 
 function stopLineDrag(fig)
