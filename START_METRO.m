@@ -14,11 +14,11 @@ cfg = struct();
 cfg.SUBJECT     = 'qqq';  % <- use this for a test run
 % cfg.SUBJECT     = 'metro-pilot003';  % <- use this for a test run
 
-SUBJECT_METRO_RATE          = 3.5; % % set this rate for the subject after running assess
+SUBJECT_METRO_RATE          = 3.6; % % set this rate for the subject after running assess
 
-% cfg.SESSION = 'assess';    % 
-% cfg.SESSION = 'famil';    % 
-% cfg.SESSION = 'preop';    % 
+% cfg.SESSION = 'assess';   % run first during preop to measure sub's natural syllable rate
+% cfg.SESSION = 'famil';      % run after assess (during preop) to familiarize sub w/ task at slow rate
+% cfg.SESSION = 'preop';    % run after 'famil' (during preop) to train sub on intraop task at full metro rate
 cfg.SESSION = 'intraop';    % 
 
 
@@ -26,10 +26,10 @@ cfg.SESSION = 'intraop';    %
 cfg.STOP_BETWEEN_TRIALS        = 1;          % require SPACE to start each trial - this value is ignored in assessment mode
 cfg.iti                   = [0.5 1];   % jittered inter-trial interval (s)   [was iti_range in the demo]
 cfg.max_trials            = inf;           % cap on total trials (inf = run them all)
-cfg.randomize_order       = true;          % shuffle sentence order within each block
-cfg.trials_per_mini_block = 5;       % there will be at least this many trials of a condition in a row
+cfg.randomize_order       = true;          % shuffle sentence order within each block; ignored in assess mode
+cfg.trials_per_mini_block = 5;       % there will be at least this many trials of a condition in a row (ignored in assess mode)
 cfg.pause_every_n_trials = 30;       % pause for a break at this interval (regardless of block length)
-cfg.first_trial_is_metro = 1; 
+cfg.first_trial_is_metro = 1;       % force first trial to be metro (ignored in assess mode) 
 cfg.intraop_to_preop_to_speed_ratio = 0.9; 
 cfg.alternate_syl_colors_during_nonmetro = 1; % if true, alternate syl colors on all trials; if false, only do so on metro trials
 
@@ -59,32 +59,35 @@ cfg.TASK_FUNCTION = 'task_metro.m';   % main task file; must live in <PATH_TASK>
 
 %% ---------------- Session-specific settings ----------------
 switch cfg.SESSION
-    case 'famil' 
-        cfg.metro_rate = 2;         % rate in Hz of audio metronome
-        cfg.n_blocks = 1;
-        cfg.stim_file = 'stim_test.tsv'; 
-        cfg.assess_syllable_rate = 0; 
-            cfg.speech_rms_thresh_amp = 0.03; 
-            cfg.speech_rms_thresh_dur = 0.01; 
     case 'assess' 
         cfg.metro_rate = nan;         % no metro trials in this phase
         cfg.n_blocks = 1;
 %         cfg.stim_file = 'stim_test.tsv'; 
-        cfg.stim_file = 'stim_test_2stim.tsv'; cfg.trials_per_mini_block = 2;
+        cfg.stim_file = 'stim_test_2stim.tsv'; 
+        cfg.DIGOUT = 1;
         cfg.assess_syllable_rate = 1; 
-            cfg.speech_rms_thresh_amp = 0.03; 
-            cfg.speech_rms_thresh_dur = 0.01; 
+            cfg.speech_rms_thresh_amp = 0.005; %%% assess mode: amplitute thresh for speech detection
+            cfg.speech_rms_thresh_dur = 0.01; %%% assess mode: min above-thresh time required for speech detection
+            cfg.assess_wait_after_go  = 0.25; % asses mode: don't start looking for speech until this long after beep
+    case 'famil' 
+        cfg.metro_rate = 2;         % rate in Hz of audio metronome
+        cfg.n_blocks = 1;
+        cfg.stim_file = 'stim_test.tsv'; 
+        cfg.DIGOUT = 1;
+        cfg.assess_syllable_rate = 0; 
     case 'preop'
-        cfg.metro_rate = SUBJECT_METRO_RATE;    
+        cfg.metro_rate = SUBJECT_METRO_RATE;    % use the rate that was determined during assess
         cfg.n_blocks = 1;
         cfg.stim_file = 'stim_test.tsv'; 
 %         cfg.stim_file = 'daf_sentences_preop_single.tsv'; 
+        cfg.DIGOUT = 1;
         cfg.assess_syllable_rate = 0; 
     case 'intraop'
-        cfg.metro_rate = SUBJECT_METRO_RATE;    
+        cfg.metro_rate = SUBJECT_METRO_RATE;    % use the rate that was determined during assess
         cfg.n_blocks = 3;
         cfg.stim_file = 'stim_test.tsv'; 
 %         cfg.stim_file = 'daf_sentences_intraop_single.tsv'; 
+        cfg.DIGOUT = 1;
         cfg.assess_syllable_rate = 0; 
     otherwise
         error('Unknown session label: %s', cfg.SESSION);
@@ -214,7 +217,7 @@ end
 
 %% ---------------- Ripple neurophysiology hardware (optional) ----------------
 % Self-skipping: only runs if the xippmex mex file is present on this machine.
-cfg.DIGOUT = 0;
+
 if exist('xippmex','file')==3
     try
         digout = xippmex();
