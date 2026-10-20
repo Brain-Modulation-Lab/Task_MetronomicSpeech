@@ -1,0 +1,11 @@
+n_syl	stim
+15	.Flick.er.ing .lights .frus.trat.ed .the .ful.ly .fo.cused .pho.tog.ra.pher
+15	.Whist.ling .winds .whipped .through .wea.thered .shu.tters .dur.ing .dread.ful .down.pours
+15	.Spark.ling .streams .splashed .soft.ly .a.gainst .smooth .slip.per.y .sur.face.s
+15	.Mar.ching .bands .made .mag.ni.fi.cent .mu.sic .through.out .the .mar.ket
+15	".Hea.vy .hail .struck .the .hill.side, .hi.ding .the .sound .of .hur.ried .steps"
+15	.Girls .grabbed .col.or.ful .bal.loons .from .the .par.ty .dec.o.ra.tor.
+15	.Cu.ri.ous .cats .care.ful.ly .climbed .o.ver .steep .stone .stair.cas.es
+15	.Play.ful .pan.das .picked .per.fect.ly .ripe .bam.boo .shoots .for .break.fast
+15	.Dan.cing .dol.phins .dove .through .crys.tal .clear .trop.i.cal .o.cean .waves
+15	.The .sci.en.tist .ex.am.ined .sub.tle .shad.ows .spin.ning .a.round
