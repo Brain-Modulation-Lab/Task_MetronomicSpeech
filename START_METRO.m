@@ -81,7 +81,7 @@ switch cfg.SESSION
         cfg.metro_rate = SUBJECT_METRO_RATE;    % use the rate that was determined during assess
         cfg.speech_window_dur       = 7;            % s between GO beep onset and visual stimulus disappearing
         cfg.n_blocks = 2;
-        cfg.stim_file = 'metro_15syl_10sent'
+        cfg.stim_file = 'metro_15syl_10sent.tsv'
 %         cfg.stim_file = 'metro_15syl_9sent.tsv'; 
         cfg.DIGOUT = 0;
         cfg.assess_syllable_rate = 0; 
