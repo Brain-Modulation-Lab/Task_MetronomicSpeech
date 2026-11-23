@@ -11,15 +11,15 @@ function START_METRO
 cfg = struct();
 
 %% ---------------- Subject / session ----------------
-cfg.SUBJECT     = 'qqq';  % <- use this for a test run
-% cfg.SUBJECT     = 'metro-pilot003';  % <- use this for a test run
+% cfg.SUBJECT     = 'qqq';  % <- use this for a test run
+cfg.SUBJECT     = 'DM1063';  % <- use this for a test run
 
 SUBJECT_METRO_RATE          = 3.6; % % set this rate for the subject after running assess
 
 % cfg.SESSION = 'assess';   % run first during preop to measure sub's natural syllable rate
 % cfg.SESSION = 'famil';      % run after assess (during preop) to familiarize sub w/ task at slow rate
-cfg.SESSION = 'preop';    % run after 'famil' (during preop) to train sub on intraop task at full metro rate
-% cfg.SESSION = 'intraop';    % 
+% cfg.SESSION = 'preop';    % run after 'famil' (during preop) to train sub on intraop task at full metro rate
+cfg.SESSION = 'intraop';    % 
 
 
 %% ---------------- Run / session options ----------------
@@ -60,10 +60,9 @@ cfg.TASK_FUNCTION = 'task_metro.m';   % main task file; must live in <PATH_TASK>
 switch cfg.SESSION
     case 'assess' 
         cfg.metro_rate = nan;         % no metro trials in this phase
-        cfg.speech_window_dur       = 7;            % s between GO beep onset and visual stimulus disappearing
+        cfg.speech_window_dur       = 9;            % s between GO beep onset and visual stimulus disappearing
         cfg.n_blocks = 1;
-        cfg.stim_file = 'stim_test.tsv'; 
-%         cfg.stim_file = 'stim_test_2stim.tsv'; 
+        cfg.stim_file = 'metro_15syl_5sent.tsv'; 
         cfg.DIGOUT = 0;
         cfg.assess_syllable_rate = 1; 
             cfg.speech_rms_thresh_amp = 0.005; %%% assess mode: amplitute thresh for speech detection
@@ -71,26 +70,23 @@ switch cfg.SESSION
             cfg.assess_wait_after_go  = 0.25; % asses mode: don't start looking for speech until this long after beep
     case 'famil' 
         cfg.metro_rate = 2;         % rate in Hz of audio metronome
-        cfg.speech_window_dur       = 8;            % s between GO beep onset and visual stimulus disappearing
-
+        cfg.speech_window_dur       = 9;            % s between GO beep onset and visual stimulus disappearing
         cfg.n_blocks = 1;
-        cfg.stim_file = 'stim_test.tsv'; 
+        cfg.stim_file = 'metro_15syl_5sent.tsv'; 
         cfg.DIGOUT = 0;
         cfg.assess_syllable_rate = 0; 
     case 'preop'
         cfg.metro_rate = SUBJECT_METRO_RATE;    % use the rate that was determined during assess
         cfg.speech_window_dur       = 7;            % s between GO beep onset and visual stimulus disappearing
         cfg.n_blocks = 2;
-        cfg.stim_file = 'metro_15syl_10sent.tsv'
-%         cfg.stim_file = 'metro_15syl_9sent.tsv'; 
+        cfg.stim_file = 'metro_15syl_5sent.tsv'
         cfg.DIGOUT = 0;
         cfg.assess_syllable_rate = 0; 
     case 'intraop'
         cfg.metro_rate = SUBJECT_METRO_RATE;    % use the rate that was determined during assess
         cfg.speech_window_dur       = 7;            % s between GO beep onset and visual stimulus disappearing
-        cfg.n_blocks = 3;
-        cfg.stim_file = 'stim_test.tsv'; 
-%         cfg.stim_file = 'daf_sentences_intraop_single.tsv'; 
+        cfg.n_blocks = 4;
+        cfg.stim_file = 'metro_15syl_5sent.tsv'; 
         cfg.DIGOUT = 1;
         cfg.assess_syllable_rate = 0; 
     otherwise
