@@ -18,11 +18,11 @@ SUBJECT_METRO_RATE          = 3.6; % % set this rate for the subject after runni
 
 % cfg.SESSION = 'assess';   % run first during preop to measure sub's natural syllable rate
 % cfg.SESSION = 'famil';      % run after assess (during preop) to familiarize sub w/ task at slow rate
-% cfg.SESSION = 'preop';    % run after 'famil' (during preop) to train sub on intraop task at full metro rate
+% cfg.SESSION = 'preop';    % ru n after 'famil' (during preop) to train sub on intraop task at full metro rate
 cfg.SESSION = 'intraop';    % 
 
 
-%% ---------------- Run / session options ----------------
+%% ---------------- Run / sessi on options ----------------
 cfg.STOP_BETWEEN_TRIALS        = 1;          % require SPACE to start each trial - this value is ignored in assessment mode
 cfg.iti                   = [0.5 1];   % jittered inter-trial interval (s)   [was iti_range in the demo]
 cfg.max_trials            = inf;           % cap on total trials (inf = run them all)
@@ -31,7 +31,7 @@ cfg.trials_per_mini_block = 5;       % there will be at least this many trials o
 cfg.pause_every_n_trials = 30;       % pause for a break at this interval (regardless of block length)
 cfg.first_trial_is_metro = 1;       % force first trial to be metro (ignored in assess mode) 
 cfg.intraop_to_preop_to_speed_ratio = 0.9; 
-cfg.alternate_syl_colors_during_nonmetro = 1; % if true, alternate syl colors on all trials; if false, only do so on metro trials
+cfg.alternate_syl_colors_during_nonmetro = 1; % if true, alt ernate syl colors on all trials; if false, only do so on metro trials
 
 %% ---------------- Metronomic task parameters ----------------
 cfg.metro_dur      = 2;          % s the auditory metronome plays (pre-go epoch 1)
@@ -45,9 +45,9 @@ cfg.text_colors = {[1 1 1], [255, 199, 44]./255};
 %% ---------------- Sounds ----------------
 cfg.go_beep_freq        = 1000;   % GO beep tone (Hz)
 cfg.go_beep_dur         = 0.05;   % GO beep duration (s)
-cfg.go_beep_amp         = 0.5;    % GO beep amplitude (0..1)
+cfg.go_beep_amp         = 1;    % GO beep amplitude (0..1)
 cfg.play_metronome      = true;   % play the auditory metronome in epoch 1
-cfg.metronome_amplitude = 0.30;   % metronome loudness (0..1)
+cfg.metronome_amplitude = 0.6;   % metronome loudness (0..1)
 cfg.tick_freq           = 1600;   % metronome click tone (Hz)
 cfg.tick_dur            = 0.02;   % metronome click duration (s)
 
@@ -76,16 +76,16 @@ switch cfg.SESSION
         cfg.DIGOUT = 0;
         cfg.assess_syllable_rate = 0; 
     case 'preop'
-        cfg.metro_rate = SUBJECT_METRO_RATE;    % use the rate that was determined during assess
+        cfg.metro_rate = SUBJECT_METRO_RATE;    % use the rate that wa s determined during assess
         cfg.speech_window_dur       = 7;            % s between GO beep onset and visual stimulus disappearing
-        cfg.n_blocks = 2;
+        cfg.n_blocks = 4;
         cfg.stim_file = 'metro_15syl_5sent.tsv'
         cfg.DIGOUT = 0;
         cfg.assess_syllable_rate = 0; 
     case 'intraop'
         cfg.metro_rate = SUBJECT_METRO_RATE;    % use the rate that was determined during assess
         cfg.speech_window_dur       = 7;            % s between GO beep onset and visual stimulus disappearing
-        cfg.n_blocks = 4;
+        cfg.n_blocks = 8;
         cfg.stim_file = 'metro_15syl_5sent.tsv'; 
         cfg.DIGOUT = 1;
         cfg.assess_syllable_rate = 0; 
